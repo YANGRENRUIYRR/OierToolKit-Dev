@@ -37,14 +37,15 @@ func (f *fileIO) enabled() bool { return f != nil && f.In != "" }
 
 // runResult 是一次受测运行的结果。
 type runResult struct {
-	wallMS   int64   // 墙钟运行时间（毫秒），由 Go 标准库直接测量
-	memMB    float64 // 峰值常驻内存（MB），来自操作系统原生接口
-	memOK    bool    // 内存测量是否可用
-	timedOut bool    // 是否因超时被强制终止
-	aborted  bool    // 是否因调用方请求停止而被强制终止
-	runErr   error   // 进程退出错误（timedOut/aborted 时为被杀死的错误）
-	stdout   string
-	stderr   string
+	wallMS      int64   // 墙钟运行时间（毫秒），由 Go 标准库直接测量
+	memMB       float64 // 峰值常驻内存（MB），来自操作系统原生接口
+	memOK       bool    // 内存测量是否可用
+	timedOut    bool    // 是否因超时被强制终止
+	aborted     bool    // 是否因调用方请求停止而被强制终止
+	memLimitHit bool    // 是否顶到内存硬上限（Windows Job Object）
+	runErr      error   // 进程退出错误（timedOut/aborted 时为被杀死的错误）
+	stdout      string
+	stderr      string
 }
 
 // memProbeFunc 在目标进程结束（Wait 返回）后读取其峰值内存（MB）。
@@ -52,8 +53,9 @@ type memProbeFunc func() (float64, bool)
 
 // runMeasured 在给定时间限制下运行程序，测量墙钟时间与峰值内存。
 // 不依赖任何外部工具：计时用 Go 标准库，内存读取见各平台的 startMemProbe。
-func runMeasured(exePath, inPath, workDir string, timeLimitSec float64) runResult {
-	return runMeasuredStopped(exePath, inPath, workDir, timeLimitSec, nil, nil)
+// memLimitMB > 0 时施加内存硬上限（Windows Job Object；其它平台忽略）。
+func runMeasured(exePath, inPath, workDir string, timeLimitSec, memLimitMB float64) runResult {
+	return runMeasuredStopped(exePath, inPath, workDir, timeLimitSec, memLimitMB, nil, nil)
 }
 
 // runMeasuredStopped 与 runMeasured 相同，但额外接受一个停止信号：
@@ -64,7 +66,7 @@ func runMeasured(exePath, inPath, workDir string, timeLimitSec float64) runResul
 // 结束后把 fio.Out 的内容作为 stdout 返回（文件不存在视为空输出）。
 // 程序在一个独享的临时目录里运行——并发评测多个测试点时互不踩踏，
 // 也避免在项目目录里留下中间文件。
-func runMeasuredStopped(exePath, inPath, workDir string, timeLimitSec float64, stopped func() bool, fio *fileIO) runResult {
+func runMeasuredStopped(exePath, inPath, workDir string, timeLimitSec, memLimitMB float64, stopped func() bool, fio *fileIO) runResult {
 	runDir := workDir
 	if fio.enabled() {
 		tmp, err := os.MkdirTemp(workDir, ".otk-io-")
@@ -96,6 +98,11 @@ func runMeasuredStopped(exePath, inPath, workDir string, timeLimitSec float64, s
 	if err := cmd.Start(); err != nil {
 		return runResult{runErr: err}
 	}
+	// 内存硬限制（Windows Job Object）：超限的程序分配直接失败，
+	// 不会把机器内存吃穿。assign 在 Start 之后尽快调用。
+	limiter := newMemLimiter(memLimitMB)
+	defer limiter.close()
+	limiter.assign(cmd)
 	// Windows 需要在进程存活期间打开句柄，Unix 实现则惰性读取 ProcessState。
 	probe := startMemProbe(cmd)
 
@@ -160,6 +167,11 @@ func runMeasuredStopped(exePath, inPath, workDir string, timeLimitSec float64, s
 	wallMS := time.Since(start).Milliseconds()
 
 	memMB, memOK := probe()
+	// 有硬限制时优先用 Job 的提交内存峰值：比 working set 采样更准，
+	// 也不会漏掉"分配成功但没碰页"的内存。
+	if p, ok := limiter.peakMB(); ok {
+		memMB, memOK = p, true
+	}
 
 	stdout := outBuf.String()
 	stderr := errBuf.String()
@@ -175,14 +187,15 @@ func runMeasuredStopped(exePath, inPath, workDir string, timeLimitSec float64, s
 	}
 
 	return runResult{
-		wallMS:   wallMS,
-		memMB:    memMB,
-		memOK:    memOK,
-		timedOut: timedOut,
-		aborted:  aborted,
-		runErr:   waitErr,
-		stdout:   stdout,
-		stderr:   stderr,
+		wallMS:      wallMS,
+		memMB:       memMB,
+		memOK:       memOK,
+		timedOut:    timedOut,
+		aborted:     aborted,
+		memLimitHit: limiter.hit(),
+		runErr:      waitErr,
+		stdout:      stdout,
+		stderr:      stderr,
 	}
 }
 

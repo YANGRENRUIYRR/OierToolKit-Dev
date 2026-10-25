@@ -296,7 +296,7 @@ func judgeSubmission(c contest, prob contestProblem, src contestSource, buildDir
 		if t.TimeMS > 0 {
 			limit = float64(t.TimeMS) / 1000.0
 		}
-		run := runMeasuredStopped(exe, inPath, c.Dir, limit, stopped, fio)
+		run := runMeasuredStopped(exe, inPath, c.Dir, limit, memLimit, stopped, fio)
 		if run.aborted {
 			return out, true
 		}

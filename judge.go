@@ -235,7 +235,7 @@ func evalSamples(job judgeJob, emit func(pointResult), stopped func() bool) judg
 // 是否因调用方请求停止而被中断（此时结果不可用）。
 func runJudgePoint(job judgeJob, task pointJob) (pointResult, bool) {
 	pt := pointResult{ID: task.id}
-	res := runMeasuredStopped(job.ExePath, task.in, job.Dir, job.TimeLimit, job.Stopped, job.FileIO)
+	res := runMeasuredStopped(job.ExePath, task.in, job.Dir, job.TimeLimit, job.MemLimit, job.Stopped, job.FileIO)
 	if res.aborted {
 		return pt, true
 	}
@@ -244,10 +244,15 @@ func runJudgePoint(job judgeJob, task pointJob) (pointResult, bool) {
 	switch {
 	case res.timedOut:
 		pt.Verdict = verdictTLE
+	case res.runErr != nil && res.memLimitHit:
+		// Windows 硬限制下超内存的程序大概率是分配失败崩掉的，
+		// 先于 RE 判 MLE（细节仍是 stderr，便于排查）。
+		pt.Verdict = verdictMLE
+		pt.Detail = strings.TrimSpace(res.stderr)
 	case res.runErr != nil:
 		pt.Verdict = verdictRE
 		pt.Detail = strings.TrimSpace(res.stderr)
-	case res.memOK && res.memMB > job.MemLimit:
+	case res.memLimitHit || (res.memOK && res.memMB > job.MemLimit):
 		pt.Verdict = verdictMLE
 	default:
 		expected := normalizeOutput(readFile(task.out))

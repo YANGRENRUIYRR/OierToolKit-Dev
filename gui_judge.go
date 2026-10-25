@@ -265,6 +265,34 @@ func (j *judgePage) targetText(p project) string {
 	return p.codeName() + ".cpp · 标准输入输出"
 }
 
+// compileOnly 只编译不评测（Ctrl+B）：结果写进状态栏与详情区，
+// 供快速检查语法错误。评测进行中忽略。
+func (j *judgePage) compileOnly() {
+	if j.running.Load() {
+		return
+	}
+	p := j.pg.p
+	j.pg.g.busy(true, "编译 "+p.codeName()+" ...")
+	j.note.SetText("编译中 ...")
+	gen := j.pg.gen
+	go func() {
+		log, ok := compileProjectTo(p.sourcePath(), p.exePath(), p.cfg())
+		ui(func() {
+			if !j.alive(gen) {
+				return
+			}
+			if ok {
+				j.pg.g.busy(false, "编译成功")
+				j.note.SetText("编译成功，可开始评测")
+			} else {
+				j.pg.g.busy(false, "编译失败")
+				j.note.SetText("编译失败")
+				j.detail.SetText(log)
+			}
+		})
+	}()
+}
+
 // reload 在切换项目后重置页面。
 func (j *judgePage) reload() {
 	if j.running.Load() {

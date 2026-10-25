@@ -55,7 +55,7 @@ func TestRunMeasuredStoppedKillsProcess(t *testing.T) {
 	}()
 
 	start := time.Now()
-	res := runMeasuredStopped(exe, "", dir, 30, stop.Load, nil) // 时限 30s，但我们 200ms 就停
+	res := runMeasuredStopped(exe, "", dir, 30, 0, stop.Load, nil) // 时限 30s，但我们 200ms 就停
 	elapsed := time.Since(start)
 
 	if !res.aborted {
@@ -85,7 +85,7 @@ int main(){int a,b;scanf("%d %d",&a,&b);printf("%d\n",a+b);}`)
 	in := filepath.Join(dir, "1.in")
 	writeText(t, in, "1 2\n")
 
-	res := runMeasuredStopped(exe, in, dir, 5, func() bool { return false }, nil)
+	res := runMeasuredStopped(exe, in, dir, 5, 0, func() bool { return false }, nil)
 	if res.aborted {
 		t.Fatalf("不应被中断")
 	}

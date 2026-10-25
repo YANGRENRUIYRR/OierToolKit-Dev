@@ -47,6 +47,8 @@ var (
 	procMonitorFromWindow   *syscall.LazyProc
 	procGetMonitorInfoW     *syscall.LazyProc
 	procSystemParameters    *syscall.LazyProc
+	procGetWindowRect       *syscall.LazyProc
+	procSetWindowPos        *syscall.LazyProc
 )
 
 const (
@@ -56,6 +58,10 @@ const (
 	spiGetWorkArea = 0x0030 // SPI_GETWORKAREA
 
 	monitorDefaultToNearest = 0x00000002 // MONITOR_DEFAULTTONEAREST
+
+	// SetWindowPos 标志：不改 Z 序、不激活窗口。
+	swpNoZOrder   = 0x0004
+	swpNoActivate = 0x0010
 )
 
 type winRect struct {
@@ -77,6 +83,8 @@ func loadUser32() {
 	procMonitorFromWindow = user32.NewProc("MonitorFromWindow")
 	procGetMonitorInfoW = user32.NewProc("GetMonitorInfoW")
 	procSystemParameters = user32.NewProc("SystemParametersInfoW")
+	procGetWindowRect = user32.NewProc("GetWindowRect")
+	procSetWindowPos = user32.NewProc("SetWindowPos")
 }
 
 // hwndOf 取出 Fyne 窗口背后的原生窗口句柄；取不到时返回 0。
@@ -161,4 +169,32 @@ func workAreaSize(w fyne.Window) (fyne.Size, bool) {
 		), true
 	}
 	return fyne.Size{}, false
+}
+
+// nativeWindowPos 返回窗口左上角的屏幕坐标（像素）。用于记住窗口位置。
+func nativeWindowPos(w fyne.Window) (int, int, bool) {
+	hwnd := hwndOf(w)
+	if hwnd == 0 {
+		return 0, 0, false
+	}
+	user32Once.Do(loadUser32)
+	var r winRect
+	if ok, _, _ := procGetWindowRect.Call(hwnd, uintptr(unsafe.Pointer(&r))); ok == 0 {
+		return 0, 0, false
+	}
+	return int(r.Left), int(r.Top), true
+}
+
+// nativeMoveWindow 把窗口移到指定屏幕坐标（像素）。
+// Fyne 的 Window 接口没有位置 API，只能走 SetWindowPos。
+func nativeMoveWindow(w fyne.Window, x, y int) bool {
+	hwnd := hwndOf(w)
+	if hwnd == 0 {
+		return false
+	}
+	user32Once.Do(loadUser32)
+	r, _, _ := procSetWindowPos.Call(hwnd, 0,
+		uintptr(int32(x)), uintptr(int32(y)), 0, 0,
+		swpNoZOrder|swpNoActivate|0x0001 /*SWP_NOSIZE*/)
+	return r != 0
 }

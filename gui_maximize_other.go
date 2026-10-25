@@ -32,3 +32,8 @@ func nativeMaximize(fyne.Window, bool) bool { return false }
 func nativeIsMaximized(fyne.Window) bool { return false }
 
 func workAreaSize(fyne.Window) (fyne.Size, bool) { return fyne.Size{}, false }
+
+// 非 Windows 平台没有公开的窗口位置 API，位置记忆只保留尺寸。
+func nativeWindowPos(fyne.Window) (int, int, bool) { return 0, 0, false }
+
+func nativeMoveWindow(fyne.Window, int, int) bool { return false }

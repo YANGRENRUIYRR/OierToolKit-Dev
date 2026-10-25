@@ -20,8 +20,10 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
 )
 
@@ -31,6 +33,13 @@ import (
 const (
 	prefFullscreen    = "gui_fullscreen"     // 启动时全屏
 	prefShortcutAsked = "gui_shortcut_asked" // 是否已经问过"要不要创建桌面快捷方式"
+
+	// 窗口状态记忆：关闭时的最大化状态与窗口化时的尺寸/位置。
+	prefWinMax = "gui_win_max"
+	prefWinW   = "gui_win_w"
+	prefWinH   = "gui_win_h"
+	prefWinX   = "gui_win_x"
+	prefWinY   = "gui_win_y"
 )
 
 // guiPref 读取一个 GUI 偏好，缺失时返回 def。
@@ -68,6 +77,57 @@ func setGuiPrefBool(key string, value bool) error {
 		v = "1"
 	}
 	return setGuiPref(key, v)
+}
+
+// guiPrefInt 读取整数偏好，缺失或非法时返回 def。
+func guiPrefInt(key string, def int) int {
+	raw := strings.TrimSpace(guiPref(key, ""))
+	if n, err := strconv.Atoi(raw); err == nil {
+		return n
+	}
+	return def
+}
+
+// setGuiPrefInt 写入整数偏好。
+func setGuiPrefInt(key string, value int) error {
+	return setGuiPref(key, strconv.Itoa(value))
+}
+
+// saveWindowState 在窗口关闭前记住当前状态：
+// 是否最大化；窗口化时的客户区尺寸与屏幕位置（位置仅 Windows 支持）。
+func (g *guiApp) saveWindowState() {
+	if g == nil || g.win == nil {
+		return
+	}
+	maxed := nativeIsMaximized(g.win)
+	_ = setGuiPrefBool(prefWinMax, maxed)
+	if maxed {
+		return
+	}
+	if c := g.win.Canvas(); c != nil {
+		if sz := c.Size(); sz.Width > 100 && sz.Height > 100 {
+			_ = setGuiPrefInt(prefWinW, int(sz.Width))
+			_ = setGuiPrefInt(prefWinH, int(sz.Height))
+		}
+	}
+	if x, y, ok := nativeWindowPos(g.win); ok {
+		_ = setGuiPrefInt(prefWinX, x)
+		_ = setGuiPrefInt(prefWinY, y)
+	}
+}
+
+// restoreWindowState 在"窗口化启动"（关闭了最大化偏好）时恢复上次的
+// 尺寸与位置。没有历史记录时维持 1180×760 居中的默认值。
+func (g *guiApp) restoreWindowState() {
+	if g == nil || g.win == nil {
+		return
+	}
+	if w, h := guiPrefInt(prefWinW, 0), guiPrefInt(prefWinH, 0); w > 200 && h > 150 {
+		g.win.Resize(fyne.NewSize(float32(w), float32(h)))
+	}
+	if x, y := guiPrefInt(prefWinX, 0), guiPrefInt(prefWinY, 0); x != 0 || y != 0 {
+		nativeMoveWindow(g.win, x, y)
+	}
 }
 
 // maybeAskShortcut 在首次启动 GUI 时询问是否创建桌面快捷方式。
@@ -135,5 +195,5 @@ func fullscreenLabel(on bool) string {
 	if on {
 		return "全屏启动"
 	}
-	return "窗口化启动（1180×760 居中）"
+	return "窗口化启动（恢复上次窗口大小与位置）"
 }

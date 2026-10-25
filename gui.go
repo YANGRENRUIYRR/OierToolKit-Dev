@@ -30,6 +30,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -100,6 +101,11 @@ func cmdGui() {
 	// 窗口 Show() 之后才有真正的 HWND，最大化动作放到应用启动事件里做。
 	g.startMaximized = guiPrefBool(prefFullscreen, true)
 	w.Resize(fyne.NewSize(1180, 760))
+	// 关闭前记住窗口状态，供下次"窗口化启动"时恢复。
+	w.SetCloseIntercept(func() {
+		g.saveWindowState()
+		w.Close()
+	})
 
 	g.reloadProjects()
 	if len(g.visible) > 0 {
@@ -109,11 +115,14 @@ func cmdGui() {
 	// 首次启动询问要不要创建桌面快捷方式。放到应用启动后执行，
 	// 保证对话框有主窗口可以依附。
 	w.Canvas().SetOnTypedKey(g.onTypedKey)
+	g.registerShortcuts(w.Canvas())
 	a.Lifecycle().SetOnStarted(func() {
 		ui(func() {
 			if g.startMaximized {
 				g.setMaximized(true)
 				g.startMaximized = false
+			} else {
+				g.restoreWindowState()
 			}
 			g.maybeAskShortcut()
 		})
@@ -132,6 +141,50 @@ func (g *guiApp) onTypedKey(ev *fyne.KeyEvent) {
 			g.win.SetFullScreen(false)
 		}
 	}
+}
+
+// registerShortcuts 注册 Ctrl 组合快捷键：
+//   - Ctrl+B 只编译；Ctrl+J 切到评测页并开始评测
+//   - Ctrl+1..6 切换功能页（概览/源码/样例/评测/对拍/提交）
+//
+// 浮层（sheet）打开期间忽略这些快捷键，避免在对话框背后误触发任务。
+func (g *guiApp) registerShortcuts(c fyne.Canvas) {
+	if c == nil {
+		return
+	}
+	add := func(key fyne.KeyName, f func()) {
+		c.AddShortcut(&desktop.CustomShortcut{KeyName: key, Modifier: fyne.KeyModifierControl},
+			func(fyne.Shortcut) { f() })
+	}
+	add(fyne.KeyB, func() { g.shortcutCompile() })
+	add(fyne.KeyJ, func() { g.shortcutJudge() })
+	for i, k := range []fyne.KeyName{fyne.Key1, fyne.Key2, fyne.Key3, fyne.Key4, fyne.Key5, fyne.Key6} {
+		idx := i
+		add(k, func() {
+			if g.sheet != nil || g.page == nil {
+				return
+			}
+			g.page.selectTab(idx)
+		})
+	}
+}
+
+// shortcutCompile 响应 Ctrl+B：切到评测页只编译不评测。
+func (g *guiApp) shortcutCompile() {
+	if g.sheet != nil || g.page == nil || g.page.judge == nil {
+		return
+	}
+	g.page.selectTab(3)
+	g.page.judge.compileOnly()
+}
+
+// shortcutJudge 响应 Ctrl+J：切到评测页并开始编译评测。
+func (g *guiApp) shortcutJudge() {
+	if g.sheet != nil || g.page == nil || g.page.judge == nil {
+		return
+	}
+	g.page.selectTab(3)
+	g.page.judge.run()
 }
 
 // setMaximized 在"最大化"与"1180×760 居中窗口"之间切换。
@@ -472,6 +525,7 @@ type projectPage struct {
 	gen int64
 
 	content  fyne.CanvasObject
+	tabs     *container.AppTabs
 	overview *overviewPage
 	source   *sourcePage
 	samples  *samplesPage
@@ -500,8 +554,16 @@ func newProjectPage(g *guiApp, dir string) *projectPage {
 	)
 	tabs.SetTabLocation(container.TabLocationTop)
 
+	pg.tabs = tabs
 	pg.content = tabs
 	return pg
+}
+
+// selectTab 切到指定下标的功能页（0=概览 1=源码 2=样例 3=评测 4=对拍 5=提交）。
+func (pg *projectPage) selectTab(i int) {
+	if pg.tabs != nil && i >= 0 && i < len(pg.tabs.Items) {
+		pg.tabs.SelectIndex(i)
+	}
 }
 
 // activeProblem 返回当前编辑/评测的题号。单题项目没有题号，返回空串。
