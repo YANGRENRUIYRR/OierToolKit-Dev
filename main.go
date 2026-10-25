@@ -51,44 +51,45 @@ var (
 
 // cmdAlias 提供短别名，减少输入（如 otk j = otk judge）。
 var cmdAlias = map[string]string{
-	"init":    "init",
-	"status":  "status",
-	"st":      "status",
-	"ls":      "ls",
-	"search":  "search",
-	"se":      "search",
-	"rm":      "rm",
-	"cd":      "cd",
-	"refresh": "refresh",
-	"rf":      "refresh",
-	"clone":   "clone",
-	"submit":  "submit",
-	"sub":     "submit",
-	"samples": "samples",
-	"config":  "config",
-	"cfg":     "config",
-	"judge":   "judge",
-	"j":       "judge",
-	"history": "history",
-	"his":     "history",
-	"run":     "run",
-	"r":       "run",
-	"debug":   "debug",
-	"d":       "debug",
-	"edit":    "edit",
-	"e":       "edit",
-	"stress":  "stress",
-	"ss":      "stress",
-	"contest": "contest",
-	"ct":      "contest",
-	"gui":     "gui",
-	"show":    "show",
-	"wizard":  "wizard",
-	"doctor":  "doctor",
-	"help":    "help",
-	"h":       "help",
-	"version": "version",
-	"v":       "version",
+	"init":       "init",
+	"status":     "status",
+	"st":         "status",
+	"ls":         "ls",
+	"search":     "search",
+	"se":         "search",
+	"rm":         "rm",
+	"cd":         "cd",
+	"refresh":    "refresh",
+	"rf":         "refresh",
+	"clone":      "clone",
+	"submit":     "submit",
+	"sub":        "submit",
+	"samples":    "samples",
+	"config":     "config",
+	"cfg":        "config",
+	"judge":      "judge",
+	"j":          "judge",
+	"history":    "history",
+	"his":        "history",
+	"run":        "run",
+	"r":          "run",
+	"debug":      "debug",
+	"d":          "debug",
+	"edit":       "edit",
+	"e":          "edit",
+	"stress":     "stress",
+	"ss":         "stress",
+	"contest":    "contest",
+	"ct":         "contest",
+	"gui":        "gui",
+	"show":       "show",
+	"wizard":     "wizard",
+	"doctor":     "doctor",
+	"completion": "completion",
+	"help":       "help",
+	"h":          "help",
+	"version":    "version",
+	"v":          "version",
 }
 
 func main() {
@@ -164,6 +165,8 @@ func main() {
 		cmdWizard()
 	case "doctor":
 		cmdDoctor(args[1:])
+	case "completion":
+		cmdCompletion(args[1:])
 	case "help":
 		printUsage(os.Stdout)
 	case "version":
@@ -321,6 +324,7 @@ func printUsage(w io.Writer) {
   otk gui                打开图形界面（安装脚本也会生成 otk-gui 入口，双击即进 GUI）
   otk wizard             新手向导，完整体验一遍工作流
   otk doctor             诊断终端环境（显示异常时运行并反馈输出）
+  otk completion <shell> 输出补全脚本（bash / zsh / powershell）
   otk show w|c           担保 / 许可证
   otk version            版本
   otk help               帮助

@@ -429,29 +429,79 @@ func (j *judgePage) retest() {
 	}()
 }
 
-// showHistory 弹出最近几次评测记录，一眼看出这题的状态起伏。
+// showHistory 弹出评测历史：左侧记录列表（最新在上），右侧选中记录的
+// 逐点明细；顶部一行方块是耗时趋势速览。
 func (j *judgePage) showHistory() {
-	entries := readHistory(j.pg.p, 20)
+	entries := readHistory(j.pg.p, 50)
 	if len(entries) == 0 {
 		dialog.ShowInformation("评测历史", "还没有评测记录。\n每次“编译并评测”都会自动记录到这里。", j.pg.g.win)
 		return
 	}
-	var b strings.Builder
-	// 最新的显示在最上面。
+
+	// 列表展示最新在上，明细按下标反查。
+	type histRow struct {
+		e     historyEntry
+		label string
+	}
+	rows := make([]histRow, len(entries))
 	for i := len(entries) - 1; i >= 0; i-- {
 		e := entries[i]
-		status := "全部通过"
+		status := fmt.Sprintf("%d/%d 全部通过", e.Passed, e.Total)
 		if e.Passed < e.Total {
 			status = fmt.Sprintf("%d/%d", e.Passed, e.Total)
 			if w := firstWorstVerdict(e.Points); w != "" {
-				status += " · 首个未通过 " + w
+				status += " · " + w
 			}
 		}
-		fmt.Fprintf(&b, "%s    %d/%d  %s\n", e.Time, e.Passed, e.Total, status)
+		rows[len(entries)-1-i] = histRow{e: e, label: e.Time[5:] + "  " + status}
 	}
-	label := widget.NewLabel(b.String())
-	label.TextStyle = fyne.TextStyle{Monospace: true}
-	label.Wrapping = fyne.TextWrapWord
+
+	var walls []int64
+	for _, e := range entries {
+		walls = append(walls, maxWallOf(e))
+	}
+	trend := caption("")
+	if spark := sparkline(walls); spark != "" {
+		trend.SetText("最慢点耗时趋势（旧 → 新）  " + spark)
+	}
+
+	detail := widget.NewLabel("")
+	detail.TextStyle = fyne.TextStyle{Monospace: true}
+	detail.Wrapping = fyne.TextWrapWord
+
+	list := widget.NewList(
+		func() int { return len(rows) },
+		func() fyne.CanvasObject { return widget.NewLabel("2026-01-02 15:04") },
+		func(id widget.ListItemID, obj fyne.CanvasObject) {
+			if id < 0 || id >= len(rows) {
+				return
+			}
+			obj.(*widget.Label).SetText(rows[id].label)
+		},
+	)
+	list.OnSelected = func(id widget.ListItemID) {
+		if id < 0 || id >= len(rows) {
+			return
+		}
+		e := rows[id].e
+		var b strings.Builder
+		fmt.Fprintf(&b, "%s    %d/%d 通过    限制 %.2fs / %.0fMB\n\n",
+			e.Time, e.Passed, e.Total, e.TimeLimit, e.MemLimit)
+		for _, pt := range e.Points {
+			switch pt.Verdict {
+			case verdictTLE:
+				fmt.Fprintf(&b, "#%s  TLE   >%.0fms\n", pt.ID, e.TimeLimit*1000)
+			case verdictMissing:
+				fmt.Fprintf(&b, "#%s  缺失\n", pt.ID)
+			default:
+				fmt.Fprintf(&b, "#%s  %-4s  %dms  %s\n", pt.ID, pt.Verdict, pt.WallMS, memStr(pt))
+			}
+			if s := strings.TrimSpace(pt.Detail); s != "" {
+				fmt.Fprintf(&b, "      %s\n", firstLines(s, 3))
+			}
+		}
+		detail.SetText(b.String())
+	}
 
 	var d dialog.Dialog
 	clear := widget.NewButton("清空历史", func() {
@@ -463,9 +513,18 @@ func (j *judgePage) showHistory() {
 			}
 		}, j.pg.g.win)
 	})
-	content := container.NewBorder(nil, container.NewHBox(clear), nil, nil,
-		container.NewVScroll(label))
-	d = dialog.NewCustom("评测历史（最近 " + fmt.Sprintf("%d", len(entries)) + " 次）", "关闭", content, j.pg.g.win)
+
+	body := container.NewHSplit(list, container.NewVScroll(detail))
+	body.SetOffset(0.34)
+
+	content := container.NewBorder(
+		container.NewVBox(container.NewPadded(trend), widget.NewSeparator()),
+		container.NewHBox(clear),
+		nil, nil,
+		body,
+	)
+	d = dialog.NewCustom(fmt.Sprintf("评测历史（最近 %d 次）", len(entries)), "关闭", content, j.pg.g.win)
+	d.Resize(fyne.NewSize(640, 460))
 	d.Show()
 }
 

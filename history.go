@@ -109,6 +109,16 @@ func cmdHistory(args []string) {
 		return
 	}
 
+	// 耗时趋势：从旧到新画一行小方块，直观看这题越写越快还是越跑越慢。
+	var walls []int64
+	for _, e := range entries {
+		walls = append(walls, maxWallOf(e))
+	}
+	if trend := sparkline(walls); trend != "" {
+		fmt.Printf("最慢点耗时趋势（旧 → 新）  %s\n", trend)
+		fmt.Println()
+	}
+
 	for _, e := range entries {
 		verd := green + "AC" + reset
 		if e.Passed < e.Total {
@@ -125,6 +135,44 @@ func cmdHistory(args []string) {
 // clearHistory 删除项目的全部评测历史。
 func clearHistory(p project) {
 	_ = os.Remove(historyPath(p))
+}
+
+// sparkline 把一列数值画成一行小方块（▁▂▃…█），用于历史趋势速览。
+// 数值全为 0 或长度为 0 时返回空串。
+func sparkline(values []int64) string {
+	if len(values) == 0 {
+		return ""
+	}
+	var max int64
+	for _, v := range values {
+		if v > max {
+			max = v
+		}
+	}
+	if max <= 0 {
+		return ""
+	}
+	blocks := []rune("▁▂▃▄▅▆▇█")
+	out := make([]rune, 0, len(values))
+	for _, v := range values {
+		idx := int(float64(v) / float64(max) * float64(len(blocks)-1))
+		if idx < 0 {
+			idx = 0
+		}
+		out = append(out, blocks[idx])
+	}
+	return string(out)
+}
+
+// maxWallOf 返回一次评测里最慢测试点的耗时（毫秒），无明细时为 0。
+func maxWallOf(e historyEntry) int64 {
+	var max int64
+	for _, pt := range e.Points {
+		if pt.WallMS > max {
+			max = pt.WallMS
+		}
+	}
+	return max
 }
 
 // firstWorstVerdict 返回逐点明细里第一个未通过的判定（历史列表展示用）。

@@ -104,6 +104,7 @@ otk j                         # 编译并评测
 | `otk edit (e)` | 编辑源码（使用全局 editor 配置） |
 | `otk stress (ss) [N]` | 对拍 N 轮（默认 100） |
 | `otk wizard` | 新手向导，跟着引导走一遍工作流 |
+| `otk completion bash\|zsh\|powershell` | 输出 shell 补全脚本（source 进配置文件即可） |
 | `otk gui` | 打开图形界面（项目库、样例、评测、对拍、提交一站搞定）；安装脚本还会生成 `otk-gui` 入口，双击即进 GUI |
 | `otk contest add/judge/rank/rm` | 模拟赛：导入比赛、并发评测、查看与导出榜单 |
 
