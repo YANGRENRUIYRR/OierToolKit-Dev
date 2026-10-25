@@ -36,12 +36,16 @@ type stressPage struct {
 	content fyne.CanvasObject
 
 	rounds   *widget.Entry
+	keepChk  *widget.Check
 	startBtn *widget.Button
 	stopBtn  *widget.Button
 	bar      *widget.ProgressBar
 	status   *widget.Label
 	detail   *widget.Label
 	dataBtn  *widget.Button
+	saveBtn  *widget.Button
+
+	lastRes *stressResult
 
 	running atomic.Bool
 	cancel  atomic.Bool
@@ -87,8 +91,13 @@ func newStressPage(pg *projectPage) *stressPage {
 	})
 	s.dataBtn.Disable()
 
+	s.saveBtn = widget.NewButtonWithIcon("存为样例", theme.ContentAddIcon(), s.saveCounterexample)
+	s.saveBtn.Disable()
+
+	s.keepChk = widget.NewCheck("发现反例后继续收集", nil)
+
 	form := container.NewBorder(nil, nil,
-		container.NewHBox(caption("轮数"), container.NewGridWrap(fyne.NewSize(110, 36), s.rounds)),
+		container.NewHBox(caption("轮数"), container.NewGridWrap(fyne.NewSize(110, 36), s.rounds), s.keepChk),
 		container.NewHBox(s.startBtn, s.stopBtn),
 		nil,
 	)
@@ -100,7 +109,9 @@ func newStressPage(pg *projectPage) *stressPage {
 		widget.NewSeparator(),
 	)
 
-	bottom := container.NewPadded(container.NewBorder(nil, nil, nil, s.dataBtn, caption("反例数据保存为 <轮次>.in / .ans / .out")))
+	bottom := container.NewPadded(container.NewBorder(nil, nil, nil,
+		container.NewHBox(s.saveBtn, s.dataBtn),
+		caption("反例数据保存为 <轮次>.in / .ans / .out，可一键存为样例后在评测页复测")))
 	s.content = container.NewBorder(head, bottom, nil, nil, container.NewVScroll(s.detail))
 	s.reload()
 	return s
@@ -121,6 +132,7 @@ func (s *stressPage) run() {
 	s.cancel.Store(false)
 	s.detail.SetText("")
 	s.dataBtn.Disable()
+	s.saveBtn.Disable()
 	s.bar.SetValue(0)
 	s.bar.Show()
 	s.startBtn.Disable()
@@ -128,8 +140,9 @@ func (s *stressPage) run() {
 	s.pg.g.busy(true, "对拍准备中 ...")
 
 	p := s.pg.p
+	keepGoing := s.keepChk.Checked
 	go func() {
-		res, err := runStress(p, count, func(ev stressEvent) {
+		res, err := runStress(p, count, keepGoing, func(ev stressEvent) {
 			ui(func() {
 				switch ev.Stage {
 				case stressCompile:
@@ -145,6 +158,7 @@ func (s *stressPage) run() {
 
 		ui(func() {
 			s.running.Store(false)
+			s.lastRes = &res
 			s.startBtn.Enable()
 			s.stopBtn.Disable()
 			s.pg.g.busy(false, "对拍结束")
@@ -167,10 +181,15 @@ func (s *stressPage) run() {
 				s.detail.SetText("对拍被手动停止。")
 
 			case res.FailRound > 0:
-				s.status.SetText(fmt.Sprintf("第 %d 轮发现反例（已保存到 .stress）", res.FailRound))
+				extra := ""
+				if res.Counterexamples > 1 {
+					extra = fmt.Sprintf("，共收集 %d 组反例", res.Counterexamples)
+				}
+				s.status.SetText(fmt.Sprintf("第 %d 轮发现反例（已保存到 .stress%s）", res.FailRound, extra))
 				s.detail.SetText(fmt.Sprintf("输入数据：\n%s\n期望输出：\n%s\n实际输出：\n%s",
 					clip(res.Input), res.Expected, res.Actual))
 				s.dataBtn.Enable()
+				s.saveBtn.Enable()
 
 			default:
 				s.bar.SetValue(1)
@@ -179,6 +198,20 @@ func (s *stressPage) run() {
 			}
 		})
 	}()
+}
+
+// saveCounterexample 把首个反例写入样例库，方便在评测页直接复测。
+func (s *stressPage) saveCounterexample() {
+	if s.lastRes == nil || s.lastRes.FailRound == 0 {
+		return
+	}
+	res := s.lastRes
+	id := nextSampleID(readIndex(s.pg.p))
+	if err := writeSample(s.pg.p, id, res.Input, res.Expected); err != nil {
+		s.pg.g.showError(err)
+		return
+	}
+	s.pg.g.setStatus(fmt.Sprintf("已把第 %d 轮反例存为样例 #%s（含期望输出）", res.FailRound, id))
 }
 
 // stop 请求中断对拍。

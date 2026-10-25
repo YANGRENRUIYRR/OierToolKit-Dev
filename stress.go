@@ -53,10 +53,13 @@ type stressResult struct {
 	Passed    int
 	Stopped   bool
 	FailRound int
-	Input     string
-	Expected  string
-	Actual    string
-	StressDir string
+	// Counterexamples 是发现的反例总数：默认模式恒为 0 或 1，
+	// 开启 keepGoing 后会继续对拍并收集多个反例。
+	Counterexamples int
+	Input           string
+	Expected        string
+	Actual          string
+	StressDir       string
 }
 
 // compileFailure 表示编译阶段失败，Log 是编译器输出。
@@ -98,7 +101,7 @@ func cmdStress(args []string) {
 	signal.Notify(sigChan, os.Interrupt)
 	defer signal.Stop(sigChan)
 
-	res, err := runStress(p, count, func(ev stressEvent) {
+	res, err := runStress(p, count, false, func(ev stressEvent) {
 		switch ev.Stage {
 		case stressCompile:
 			fmt.Printf("编译 %s ... %sok%s\n", ev.Name, green, reset)
@@ -133,7 +136,7 @@ func cmdStress(args []string) {
 		fmt.Println(yellow + "对拍被中断" + reset)
 		otkExit(130)
 	case res.FailRound > 0:
-		fmt.Printf("%s第 %d 轮 WA%s\n", red, res.FailRound, reset)
+		fmt.Printf("%s第 %d 轮 WA%s（共发现 %d 组反例，已保存到 %s）\n", red, res.FailRound, reset, res.Counterexamples, res.StressDir)
 		fmt.Printf("  已保存测试数据至 %s\n", res.StressDir)
 		printDiff(res.Expected, res.Actual)
 		otkExit(1)
@@ -143,8 +146,9 @@ func cmdStress(args []string) {
 }
 
 // runStress 编译 gen/brute/项目源码并逐轮对拍；不打印、不退出，进度经 emit
-// 上报，stopped 返回 true 时在当前轮结束后中断。
-func runStress(p project, count int, emit func(stressEvent), stopped func() bool) (stressResult, error) {
+// 上报，stopped 返回 true 时在当前轮结束后中断。keepGoing 为 true 时发现
+// 反例不立即返回，而是保存后继续对拍、收集多个反例（结果里记录首个）。
+func runStress(p project, count int, keepGoing bool, emit func(stressEvent), stopped func() bool) (stressResult, error) {
 	res := stressResult{Total: count, StressDir: filepath.Join(p.Dir, ".stress")}
 	if emit == nil {
 		emit = func(stressEvent) {}
@@ -225,14 +229,20 @@ func runStress(p project, count int, emit func(stressEvent), stopped func() bool
 		userOut := normalizeOutput(projOut)
 
 		if userOut != expectedOut {
-			res.FailRound = i
-			res.Input = inputData
-			res.Expected = expectedOut
-			res.Actual = userOut
+			if res.FailRound == 0 {
+				res.FailRound = i
+				res.Input = inputData
+				res.Expected = expectedOut
+				res.Actual = userOut
+			}
+			res.Counterexamples++
 			_ = os.WriteFile(filepath.Join(res.StressDir, fmt.Sprintf("%d.in", i)), []byte(inputData), 0644)
 			_ = os.WriteFile(filepath.Join(res.StressDir, fmt.Sprintf("%d.ans", i)), []byte(expectedOut), 0644)
 			_ = os.WriteFile(filepath.Join(res.StressDir, fmt.Sprintf("%d.out", i)), []byte(userOut), 0644)
-			return res, nil
+			if !keepGoing {
+				return res, nil
+			}
+			continue
 		}
 		res.Passed++
 	}

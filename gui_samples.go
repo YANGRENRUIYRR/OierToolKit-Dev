@@ -67,6 +67,7 @@ func newSamplesPage(pg *projectPage) *samplesPage {
 
 	addBtn := widget.NewButtonWithIcon("", theme.ContentAddIcon(), s.addDialog)
 	delBtn := widget.NewButtonWithIcon("", theme.DeleteIcon(), s.deleteSelected)
+	importBtn := widget.NewButtonWithIcon("从剪贴板导入", theme.ContentPasteIcon(), s.importDialog)
 	syncBtn := widget.NewButtonWithIcon("同步", theme.ViewRefreshIcon(), func() {
 		res := syncSamples(s.pg.p, true)
 		s.reload()
@@ -78,7 +79,7 @@ func newSamplesPage(pg *projectPage) *samplesPage {
 	})
 
 	sideTop := container.NewPadded(section("样例"))
-	sideBottom := container.NewVBox(widget.NewSeparator(), container.NewPadded(container.NewHBox(addBtn, delBtn, syncBtn)))
+	sideBottom := container.NewVBox(widget.NewSeparator(), container.NewPadded(container.NewHBox(addBtn, delBtn, syncBtn, importBtn)))
 	side := container.NewBorder(sideTop, sideBottom, nil, nil, s.list)
 
 	s.title = strong("未选择样例")
@@ -180,14 +181,7 @@ func (s *samplesPage) save() {
 func (s *samplesPage) addDialog() {
 	entry := widget.NewEntry()
 	entry.SetPlaceHolder("编号，例如 3 或 sample3")
-	suggest := 1
-	for _, id := range s.ids {
-		var n int
-		if _, err := fmt.Sscanf(strings.TrimPrefix(id, "sample"), "%d", &n); err == nil && n >= suggest {
-			suggest = n + 1
-		}
-	}
-	entry.SetText(fmt.Sprintf("%d", suggest))
+	entry.SetText(nextSampleID(s.ids))
 
 	content := container.NewVBox(
 		widget.NewForm(widget.NewFormItem("样例编号", entry)),
@@ -210,6 +204,66 @@ func (s *samplesPage) addDialog() {
 		s.reload()
 		s.pg.g.setStatus("已新建样例 #" + id)
 	}, s.pg.g.win)
+}
+
+// importDialog 从剪贴板粘贴输入与期望输出，直接入库为样例。
+func (s *samplesPage) importDialog() {
+	idEntry := widget.NewEntry()
+	idEntry.SetPlaceHolder("编号，例如 3 或 sample3")
+	idEntry.SetText(nextSampleID(s.ids))
+
+	inEntry := widget.NewMultiLineEntry()
+	inEntry.SetPlaceHolder("点击右侧按钮粘贴输入数据")
+	outEntry := widget.NewMultiLineEntry()
+	outEntry.SetPlaceHolder("点击右侧按钮粘贴期望输出")
+
+	clipText := func() string {
+		return strings.ReplaceAll(s.pg.g.win.Clipboard().Content(), "\r\n", "\n")
+	}
+
+	form := widget.NewForm(
+		widget.NewFormItem("样例编号", idEntry),
+		widget.NewFormItem("输入 .in", container.NewBorder(nil, nil, nil,
+			widget.NewButtonWithIcon("粘贴", theme.ContentPasteIcon(), func() { inEntry.SetText(clipText()) }), inEntry)),
+		widget.NewFormItem("期望输出", container.NewBorder(nil, nil, nil,
+			widget.NewButtonWithIcon("粘贴", theme.ContentPasteIcon(), func() { outEntry.SetText(clipText()) }), outEntry)),
+	)
+
+	content := container.NewVBox(
+		form,
+		caption("可以从题面选中样例复制后逐项粘贴，保存后即可在评测页使用。"),
+	)
+	content.Resize(fyne.NewSize(460, 320))
+
+	dialog.ShowCustomConfirm("从剪贴板导入样例", "保存", "取消", content, func(ok bool) {
+		if !ok {
+			return
+		}
+		id := strings.TrimSpace(idEntry.Text)
+		if id == "" {
+			s.pg.g.showError(fmt.Errorf("样例编号不能为空"))
+			return
+		}
+		if err := writeSample(s.pg.p, id, inEntry.Text, outEntry.Text); err != nil {
+			s.pg.g.showError(err)
+			return
+		}
+		s.selected = id
+		s.reload()
+		s.pg.g.setStatus("已从剪贴板导入样例 #" + id)
+	}, s.pg.g.win)
+}
+
+// nextSampleID 根据现有样例编号给出下一个可用的整数编号。
+func nextSampleID(ids []string) string {
+	suggest := 1
+	for _, id := range ids {
+		var n int
+		if _, err := fmt.Sscanf(strings.TrimPrefix(id, "sample"), "%d", &n); err == nil && n >= suggest {
+			suggest = n + 1
+		}
+	}
+	return fmt.Sprintf("%d", suggest)
 }
 
 // deleteSelected 删除当前样例的全部文件。
