@@ -27,6 +27,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -43,19 +44,23 @@ type judgePage struct {
 	pg      *projectPage
 	content fyne.CanvasObject
 
-	runBtn  *widget.Button
-	stopBtn *widget.Button
-	status  *widget.Label
-	list    *widget.List
-	detail  *widget.Label
-	score   *widget.Label
-	note    *widget.Label
-	target  *widget.Label
-	bar     *widget.ProgressBar
+	runBtn    *widget.Button
+	stopBtn   *widget.Button
+	retestBtn *widget.Button
+	histBtn   *widget.Button
+	status    *widget.Label
+	list      *widget.List
+	detail    *widget.Label
+	score     *widget.Label
+	note      *widget.Label
+	target    *widget.Label
+	bar       *widget.ProgressBar
 
-	points []pointResult
-	limit  float64
-	memCap float64
+	points     []pointResult
+	limit      float64
+	memCap     float64
+	warnings   []string
+	selectedID string
 
 	running atomic.Bool
 	cancel  atomic.Bool
@@ -81,6 +86,9 @@ func newJudgePage(pg *projectPage) *judgePage {
 	j.runBtn.Importance = widget.HighImportance
 	j.stopBtn = widget.NewButtonWithIcon("停止", theme.MediaStopIcon(), j.stop)
 	j.stopBtn.Disable()
+	j.retestBtn = widget.NewButtonWithIcon("重测此点", theme.ViewRefreshIcon(), j.retest)
+	j.retestBtn.Disable()
+	j.histBtn = widget.NewButtonWithIcon("历史", theme.HistoryIcon(), j.showHistory)
 
 	j.list = widget.NewList(
 		func() int { return len(j.points) },
@@ -96,12 +104,14 @@ func newJudgePage(pg *projectPage) *judgePage {
 		if id < 0 || id >= len(j.points) {
 			return
 		}
+		j.selectedID = j.points[id].ID
+		j.retestBtn.Enable()
 		j.showDetail(j.points[id])
 	}
 
 	head := container.NewVBox(
 		container.NewPadded(container.NewBorder(nil, nil,
-			container.NewHBox(j.runBtn, j.stopBtn),
+			container.NewHBox(j.runBtn, j.stopBtn, j.retestBtn, j.histBtn),
 			nil,
 			j.status,
 		)),
@@ -176,6 +186,25 @@ func (j *judgePage) run() {
 			})
 			return
 		}
+		warnings := parseWarnings(log)
+
+		checkerExe, ceLog, checkerOK := prepareChecker(p, props)
+		if !checkerOK {
+			ui(func() {
+				if !j.alive(gen) {
+					return
+				}
+				j.running.Store(false)
+				j.runBtn.Enable()
+				j.stopBtn.Disable()
+				j.bar.Hide()
+				j.note.SetText("checker 编译失败")
+				j.status.SetText("[CE] checker 编译失败")
+				j.detail.SetText(ceLog)
+				j.pg.g.busy(false, "checker 编译失败")
+			})
+			return
+		}
 
 		ui(func() {
 			if !j.alive(gen) {
@@ -197,6 +226,7 @@ func (j *judgePage) run() {
 			TimeLimit: limit,
 			MemLimit:  memCap,
 			FileIO:    fileIOFromProps(p.cfg(), p.codeName()),
+			Checker:   checkerExe,
 		}
 		total := len(index)
 
@@ -220,6 +250,13 @@ func (j *judgePage) run() {
 				j.refreshScore()
 			})
 		}, j.cancel.Load)
+		rep.Warnings = warnings
+		j.warnings = warnings
+
+		// 完整评测记入历史（中途取消的半截结果不记）。
+		if !j.cancel.Load() && len(rep.Points) > 0 {
+			appendHistory(p, rep)
+		}
 
 		ui(func() {
 			if !j.alive(gen) {
@@ -250,9 +287,21 @@ func (j *judgePage) run() {
 				return
 			}
 			if rep.allAC() {
-				j.status.SetText(fmt.Sprintf("评测完成，全部通过（%d 线程）", threads))
+				if len(rep.Warnings) > 0 {
+					j.status.SetText(fmt.Sprintf("评测完成，全部通过（%d 条编译警告）", len(rep.Warnings)))
+				} else {
+					j.status.SetText(fmt.Sprintf("评测完成，全部通过（%d 线程）", threads))
+				}
 			} else {
 				j.status.SetText("评测完成，存在未通过的测试点")
+			}
+			if len(rep.Warnings) > 0 {
+				// 全部通过时右侧详情正好空闲，用来展示警告全文。
+				if rep.allAC() {
+					j.detail.SetText("编译警告（不影响判定）：\n" + strings.Join(rep.Warnings, "\n"))
+				} else {
+					j.detail.SetText(j.detail.Text + "\n\n编译警告（不影响判定）：\n" + strings.Join(rep.Warnings, "\n"))
+				}
 			}
 			j.pg.g.busy(false, fmt.Sprintf("评测完成：%d/%d AC，%s",
 				rep.passed(), len(rep.Points), scoreTextOf(rep)))
@@ -262,7 +311,162 @@ func (j *judgePage) run() {
 
 // targetText 是页面顶部的目标说明。
 func (j *judgePage) targetText(p project) string {
-	return p.codeName() + ".cpp · 标准输入输出"
+	props := p.cfg()
+	ioMode := "标准输入输出"
+	if fileIOFromProps(props, p.codeName()) != nil {
+		ioMode = "文件读写"
+	}
+	if spjEnabled(p, props) {
+		return p.codeName() + ".cpp · " + ioMode + " · 特殊判题（checker.cpp）"
+	}
+	return p.codeName() + ".cpp · " + ioMode
+}
+
+// retest 只重测当前选中的测试点：复用已编译的可执行文件与 checker
+// （都不存在时先编译），结果原地替换，不写历史。评测进行中忽略。
+func (j *judgePage) retest() {
+	if j.running.Load() || j.selectedID == "" {
+		return
+	}
+	id := j.selectedID
+	p := j.pg.p
+	gen := j.pg.gen
+
+	j.running.Store(true)
+	j.cancel.Store(false)
+	j.runBtn.Disable()
+	j.stopBtn.Enable()
+	j.retestBtn.Disable()
+	j.status.SetText("重测 #" + id + " ...")
+	j.pg.g.busy(true, "重测 #"+id+" ...")
+
+	go func() {
+		props := p.cfg()
+
+		// 可执行文件缺失（比如被清理过）就现编译一次。
+		if !fileExists(p.exePath()) {
+			log, ok := compileProjectTo(p.sourcePath(), p.exePath(), props)
+			if !ok {
+				ui(func() {
+					if !j.alive(gen) {
+						return
+					}
+					j.running.Store(false)
+					j.runBtn.Enable()
+					j.stopBtn.Disable()
+					j.status.SetText("[CE] 编译失败")
+					j.detail.SetText(log)
+					j.pg.g.busy(false, "编译失败")
+				})
+				return
+			}
+		}
+		checkerExe, ceLog, checkerOK := prepareChecker(p, props)
+		if !checkerOK {
+			ui(func() {
+				if !j.alive(gen) {
+					return
+				}
+				j.running.Store(false)
+				j.runBtn.Enable()
+				j.stopBtn.Disable()
+				j.status.SetText("[CE] checker 编译失败")
+				j.detail.SetText(ceLog)
+				j.pg.g.busy(false, "checker 编译失败")
+			})
+			return
+		}
+
+		limit, memCap := judgeLimits(props)
+		job := judgeJob{
+			ExePath:   p.exePath(),
+			Dir:       p.Dir,
+			Index:     []string{id},
+			Threads:   1,
+			TimeLimit: limit,
+			MemLimit:  memCap,
+			FileIO:    fileIOFromProps(props, p.codeName()),
+			Checker:   checkerExe,
+		}
+		rep := evalSamples(job, func(pt pointResult) {
+			ui(func() {
+				if !j.alive(gen) {
+					return
+				}
+				// 结果按编号原地替换，保持列表顺序稳定。
+				for i := range j.points {
+					if j.points[i].ID == pt.ID {
+						j.points[i] = pt
+						break
+					}
+				}
+				j.limit = limit
+				j.memCap = memCap
+				j.list.Refresh()
+				j.refreshScore()
+				j.showDetail(pt)
+			})
+		}, j.cancel.Load)
+
+		ui(func() {
+			if !j.alive(gen) {
+				return
+			}
+			j.running.Store(false)
+			j.runBtn.Enable()
+			j.stopBtn.Disable()
+			if j.selectedID == id {
+				j.retestBtn.Enable()
+			}
+			if len(rep.Points) == 0 {
+				j.status.SetText("重测失败：样例文件缺失")
+				j.pg.g.busy(false, "重测失败")
+				return
+			}
+			j.status.SetText(fmt.Sprintf("重测 #%s 完成（%s）", id, rep.Points[0].Verdict))
+			j.pg.g.busy(false, fmt.Sprintf("重测 #%s：%s", id, rep.Points[0].Verdict))
+		})
+	}()
+}
+
+// showHistory 弹出最近几次评测记录，一眼看出这题的状态起伏。
+func (j *judgePage) showHistory() {
+	entries := readHistory(j.pg.p, 20)
+	if len(entries) == 0 {
+		dialog.ShowInformation("评测历史", "还没有评测记录。\n每次“编译并评测”都会自动记录到这里。", j.pg.g.win)
+		return
+	}
+	var b strings.Builder
+	// 最新的显示在最上面。
+	for i := len(entries) - 1; i >= 0; i-- {
+		e := entries[i]
+		status := "全部通过"
+		if e.Passed < e.Total {
+			status = fmt.Sprintf("%d/%d", e.Passed, e.Total)
+			if w := firstWorstVerdict(e.Points); w != "" {
+				status += " · 首个未通过 " + w
+			}
+		}
+		fmt.Fprintf(&b, "%s    %d/%d  %s\n", e.Time, e.Passed, e.Total, status)
+	}
+	label := widget.NewLabel(b.String())
+	label.TextStyle = fyne.TextStyle{Monospace: true}
+	label.Wrapping = fyne.TextWrapWord
+
+	var d dialog.Dialog
+	clear := widget.NewButton("清空历史", func() {
+		d.Hide()
+		dialog.ShowConfirm("清空评测历史", "将删除这个项目的全部评测记录，确定吗？", func(ok bool) {
+			if ok {
+				clearHistory(j.pg.p)
+				j.pg.g.setStatus("评测历史已清空")
+			}
+		}, j.pg.g.win)
+	})
+	content := container.NewBorder(nil, container.NewHBox(clear), nil, nil,
+		container.NewVScroll(label))
+	d = dialog.NewCustom("评测历史（最近 " + fmt.Sprintf("%d", len(entries)) + " 次）", "关闭", content, j.pg.g.win)
+	d.Show()
 }
 
 // compileOnly 只编译不评测（Ctrl+B）：结果写进状态栏与详情区，
@@ -301,6 +505,8 @@ func (j *judgePage) reload() {
 	p := j.pg.p
 	j.target.SetText(j.targetText(p))
 	j.points = nil
+	j.selectedID = ""
+	j.retestBtn.Disable()
 	j.list.UnselectAll()
 	j.list.Refresh()
 	j.score.SetText("—")
@@ -380,8 +586,18 @@ func (j *judgePage) alive(gen int64) bool {
 func (j *judgePage) showDetail(pt pointResult) {
 	switch pt.Verdict {
 	case verdictAC:
-		j.detail.SetText(fmt.Sprintf("#%s 通过\n\n用时 %dms，峰值内存 %s。", pt.ID, pt.WallMS, memStr(pt)))
+		detail := fmt.Sprintf("#%s 通过\n\n用时 %dms，峰值内存 %s。", pt.ID, pt.WallMS, memStr(pt))
+		if strings.TrimSpace(pt.Detail) != "" {
+			detail += "\n\nchecker：" + pt.Detail
+		}
+		j.detail.SetText(detail)
 	case verdictWA:
+		if strings.TrimSpace(pt.Detail) != "" && pt.Expected == "" && pt.Actual == "" {
+			// 特殊判题的反馈：没有期望/实际对比，只有 checker 的意见。
+			j.detail.SetText(fmt.Sprintf("#%s 未通过\n\n用时 %dms，峰值内存 %s\n\n%s",
+				pt.ID, pt.WallMS, memStr(pt), pt.Detail))
+			return
+		}
 		j.detail.SetText(fmt.Sprintf("#%s 输出不一致\n\n期望：\n%s\n\n实际：\n%s", pt.ID, pt.Expected, pt.Actual))
 	case verdictRE:
 		detail := pt.Detail

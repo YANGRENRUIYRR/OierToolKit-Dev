@@ -19,6 +19,7 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -45,10 +46,12 @@ type overviewPage struct {
 	memIn   *widget.Entry
 	langSel *widget.Select
 	o2      *widget.Check
+	cflags  *widget.Entry
 	threads *widget.Entry
 	ioFile  *widget.Check
 	ioIn    *widget.Entry
 	ioOut   *widget.Entry
+	spjTip  *widget.Label
 	note    *widget.Label
 
 	loading     bool
@@ -75,6 +78,11 @@ func newOverviewPage(pg *projectPage) *overviewPage {
 	o.o2 = widget.NewCheck("开启 -O2 优化", func(bool) { o.markDirty() })
 	o.timeIn.OnChanged = func(string) { o.markDirty() }
 	o.memIn.OnChanged = func(string) { o.markDirty() }
+
+	// 额外编译参数：每题可单独配置，例如 -Wall。
+	o.cflags = widget.NewEntry()
+	o.cflags.SetPlaceHolder("如 -Wall，留空表示不加")
+	o.cflags.OnChanged = func(string) { o.markDirty() }
 
 	// 默认并发：0 表示按 CPU 核心数自动选择（上限 8）。
 	o.threads = widget.NewEntry()
@@ -126,17 +134,21 @@ func newOverviewPage(pg *projectPage) *overviewPage {
 		widget.NewFormItem("内存（MB）", o.memIn),
 		widget.NewFormItem("语言标准", o.langSel),
 		widget.NewFormItem("优化", o.o2),
+		widget.NewFormItem("编译参数", o.cflags),
 		widget.NewFormItem("并发线程", o.threads),
 		widget.NewFormItem("输入输出", o.ioFile),
 		widget.NewFormItem("输入文件名", o.ioIn),
 		widget.NewFormItem("输出文件名", o.ioOut),
 	)
 
+	o.spjTip = caption("")
+
 	body := container.NewVBox(
 		info,
 		widget.NewSeparator(),
 		section("评测配置"),
 		form,
+		container.NewHBox(o.spjTip),
 		container.NewHBox(o.note),
 		widget.NewSeparator(),
 		section("远端"),
@@ -179,12 +191,21 @@ func (o *overviewPage) reload() {
 	}
 	o.langSel.SetSelected(version)
 	o.o2.SetChecked(propsOr(props, "o2", "1") == "1")
+	o.cflags.SetText(props["cflags"])
 	o.threads.SetText(propsOr(props, "threads", "0"))
 	o.ioFile.SetChecked(propsOr(props, "io_mode", "") == "file")
 	o.ioIn.SetText(props["io_in"])
 	o.ioOut.SetText(props["io_out"])
 	o.ioIn.SetPlaceHolder("缺省 " + p.codeName() + ".in")
 	o.ioOut.SetPlaceHolder("缺省 " + p.codeName() + ".out")
+
+	if spjEnabled(p, props) {
+		o.spjTip.SetText("已启用特殊判题：" + checkerSourceName + "（checker <输入> <选手输出> <期望输出>，退出码 0 为 AC）")
+	} else if fileExists(filepath.Join(p.Dir, checkerSourceName)) {
+		o.spjTip.SetText("特殊判题已在配置中关闭（otk config spj on 重新启用）")
+	} else {
+		o.spjTip.SetText("特殊判题：在项目目录放一个 " + checkerSourceName + " 即自动启用")
+	}
 
 	if base := props["remote_base"]; base != "" {
 		o.remote.SetText(fmt.Sprintf("题目 %s @ %s", props["remote_id"], base))
@@ -237,6 +258,7 @@ func (o *overviewPage) autoSave() {
 	} else {
 		write("o2", "off")
 	}
+	write("cflags", strings.TrimSpace(o.cflags.Text))
 	threadText := strings.TrimSpace(o.threads.Text)
 	if threadText == "" {
 		threadText = "0"

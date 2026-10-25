@@ -29,7 +29,9 @@
 * **项目库**：项目可以建在任意目录（`otk init`），统一登记到项目库中管理。
 * **样例即文件**：目录里放成对的 `.in` 与 `.out`（比赛下发的 `.ans` 也认），`otk refresh` 一下即入样例库。
 * **跨平台时空测量**：运行时间与峰值内存直接来自操作系统接口，不依赖 GNU time 等外部工具。
-* **Diff 引擎**：`-v` 评测时 WA 对比期望与实际输出，RE 显示 stderr 信息。
+* **Diff 引擎与特殊判题**：`-v` 评测时 WA 对比期望与实际输出，RE 显示 stderr 信息；项目目录放一个 `checker.cpp` 即启用 SPJ（`checker <输入> <选手输出> <期望输出>`，退出码 0 为 AC），额外编译参数（如 `-Wall`）可用 `otk config cflags` 每题单独配置。
+* **评测历史**：每次完整评测自动记入 `.otk/history.json`（最多 100 条），`otk history` 或 GUI「历史」按钮随时回看；`otk j 2` 或 GUI「重测此点」只重测单个样例。
+* **多远端**：支持配置多个 OJ 远端（各自独立令牌），`otk config remote add <名> <地址>` 管理，克隆与提交按地址自动匹配令牌。
 * **对拍**：gen.cpp 造数据、brute.cpp 做标答，反例自动保存到 `.stress/`。
 * **远程 OJ**：`otk clone` 从支持 [otk-remote 协议](PROTOCOL.md)的 OJ 克隆题目到独立目录，`otk submit` 本地提交、等到 verdict。
 * **模拟赛**：`otk contest` 整目录导入比赛（多题多选手），并发评测 + subtask 捆绑给分（`all` / `any` / `sum`），一键导出独立 HTML 榜单。
@@ -91,9 +93,11 @@ otk j                         # 编译并评测
 | `otk cd [名称]` | 在新 shell 中打开项目目录 |
 | `otk refresh (rf)` | 同步样例库（.in/.out 文件对入库） |
 | `otk samples` | 列出样例 |
-| `otk config [项 值]` | 查看/修改配置（项目项：time/memory/version/o2；全局项：editor） |
-| `otk judge (j) [-v]` | 编译并评测全部样例；`-v` 显示报错与 WA 详情 |
-| `otk clone [url] <id>` | 从网站添加题目：题目与样例到 `<oj>-<题号>` 目录并初始化（协议见 PROTOCOL.md） |
+| `otk config [项 值]` | 查看/修改配置（项目项：time/memory/version/o2/cflags/spj 等；全局项：editor） |
+| `otk config remote ls \| add \| token \| rm` | 管理多个远端，每条远端有独立地址与令牌 |
+| `otk judge (j) [-v] [样例...]` | 编译并评测样例；`-v` 显示报错与 WA 详情；指定样例号只测该点 |
+| `otk history (his) [次数]` | 查看最近几次评测结果 |
+| `otk clone [-r 远端名] [url] <id>` | 从网站添加题目：题目与样例到 `<oj>-<题号>` 目录并初始化（协议见 PROTOCOL.md） |
 | `otk submit (sub) [-q]` | 提交源码到远端评测并等待结果；`-q` 只提交 |
 | `otk run (r)` | 编译并运行 |
 | `otk debug (d)` | gdb 调试 |

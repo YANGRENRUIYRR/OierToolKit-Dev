@@ -26,24 +26,89 @@ import (
 )
 
 func cmdConfig(args []string) {
-	switch len(args) {
-	case 0:
+	switch {
+	case len(args) == 0:
 		showConfig()
-	case 2:
+	case len(args) == 2:
 		setConfig(args[0], args[1])
+	case len(args) >= 2 && strings.ToLower(args[0]) == "remote":
+		cmdRemoteConfig(args[1:])
 	default:
 		fatal("用法: otk config [<项> <值>]")
 	}
 }
 
+// cmdRemoteConfig 管理命名远端列表：
+//
+//	otk config remote ls                    列出全部远端（令牌打码）
+//	otk config remote add <名> <地址>        新增远端
+//	otk config remote token <名> <令牌>      设置远端令牌
+//	otk config remote rm <名>               删除远端
+func cmdRemoteConfig(args []string) {
+	switch {
+	case len(args) == 0 || args[0] == "ls" || args[0] == "list":
+		remotes := listRemotes()
+		if len(remotes) == 0 {
+			fmt.Println("（还没有配置远端，otk config remote add <名> <地址> 添加）")
+			return
+		}
+		width := 0
+		for _, r := range remotes {
+			if len(r.Name) > width {
+				width = len(r.Name)
+			}
+		}
+		for _, r := range remotes {
+			token := "无令牌"
+			if r.Token != "" {
+				token = "有令牌"
+			}
+			fmt.Printf("%-*s  %s  %s\n", width, r.Name, r.Base, token)
+		}
+	case len(args) == 3 && (args[0] == "add" || args[0] == "set"):
+		if err := saveRemote(args[1], args[2], ""); err != nil {
+			fatal("%v", err)
+		}
+		fmt.Printf("远端 %s = %s\n", args[1], strings.TrimRight(args[2], "/"))
+	case len(args) == 3 && args[0] == "token":
+		name := strings.TrimSpace(args[1])
+		if err := saveRemoteToken(name, args[2]); err != nil {
+			fatal("%v", err)
+		}
+		fmt.Printf("远端 %s 令牌已更新\n", name)
+	case len(args) == 2 && (args[0] == "rm" || args[0] == "remove"):
+		if err := removeRemote(args[1]); err != nil {
+			fatal("%v", err)
+		}
+		fmt.Printf("已删除远端 %s\n", args[1])
+	default:
+		fatal("用法: otk config remote ls | add <名> <地址> | token <名> <令牌> | rm <名>")
+	}
+}
+
+// saveRemoteToken 只更新某条远端的令牌（地址保持不变）。
+func saveRemoteToken(name, token string) error {
+	props := readIni(globalConfigPath())
+	key := "token." + name
+	if name == legacyRemoteName {
+		if props["remote"] == "" {
+			return fmt.Errorf("没有名为 '%s' 的远端", name)
+		}
+		key = "remote_token"
+	} else if _, ok := props["remote."+name]; !ok {
+		return fmt.Errorf("没有名为 '%s' 的远端", name)
+	}
+	props[key] = strings.TrimSpace(token)
+	writeIni(globalConfigPath(), props)
+	return nil
+}
+
 func showConfig() {
 	globalProps := readIni(globalConfigPath())
 	fmt.Printf("editor=%s\n", propsOr(globalProps, "editor", defaultEditorCommand()))
-	if r := propsOr(globalProps, "remote", ""); r != "" {
-		fmt.Printf("remote=%s\n", r)
-	}
-	if propsOr(globalProps, "remote_token", "") != "" {
-		fmt.Println("remote_token=****")
+	remotes := listRemotes()
+	for _, r := range remotes {
+		fmt.Printf("remote[%s]=%s\n", r.Name, r.Base)
 	}
 
 	p, ok := findProject()
@@ -67,6 +132,14 @@ func showConfig() {
 		fmt.Printf("io=file in=%s out=%s\n",
 			propsOr(props, "io_in", "（<源码名>.in）"),
 			propsOr(props, "io_out", "（<源码名>.out）"))
+	}
+	if c := props["cflags"]; c != "" {
+		fmt.Printf("cflags=%s\n", c)
+	}
+	if spjEnabled(p, props) {
+		fmt.Println("spj=on（checker.cpp）")
+	} else if strings.ToLower(strings.TrimSpace(props["spj"])) == "off" {
+		fmt.Println("spj=off")
 	}
 	if tag := props["tag"]; tag != "" {
 		fmt.Printf("tag=%s\n", tag)
@@ -207,6 +280,31 @@ func setProjectConfig(p project, item, value string) (string, error) {
 			msg = "io_out=" + props["io_out"]
 		}
 
+	case "cflags":
+		// 额外编译参数（如 -Wall）：引号语义与命令行一致。
+		value = strings.TrimSpace(value)
+		if value != "" && len(splitQuoted(value)) == 0 {
+			return "", fmt.Errorf("cflags 格式无效")
+		}
+		props["cflags"] = value
+		if value == "" {
+			msg = "cflags=（无额外编译参数）"
+		} else {
+			msg = "cflags=" + value
+		}
+
+	case "spj":
+		switch strings.ToLower(strings.TrimSpace(value)) {
+		case "on", "true", "1":
+			props["spj"] = "1"
+			msg = "spj=on（存在 checker.cpp 时启用特殊判题）"
+		case "off", "false", "0":
+			props["spj"] = "off"
+			msg = "spj=off"
+		default:
+			return "", fmt.Errorf("spj 必须是 on/off")
+		}
+
 	case "remote_base":
 		props["remote_base"] = strings.TrimRight(value, "/")
 		msg = fmt.Sprintf("remote_base=%s", props["remote_base"])
@@ -216,7 +314,7 @@ func setProjectConfig(p project, item, value string) (string, error) {
 		msg = fmt.Sprintf("remote_id=%s", value)
 
 	default:
-		return "", fmt.Errorf("未知配置项 '%s'（项目: time/memory/version/o2/threads/io/io_in/io_out/remote_base/remote_id；全局: editor/remote/remote_token）", item)
+		return "", fmt.Errorf("未知配置项 '%s'（项目: time/memory/version/o2/threads/io/io_in/io_out/cflags/spj/remote_base/remote_id；全局: editor/remote/remote_token；远端管理: otk config remote ls|add|token|rm）", item)
 	}
 
 	writeIni(p.configPath(), props)

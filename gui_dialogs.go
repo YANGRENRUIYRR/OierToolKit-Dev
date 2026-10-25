@@ -96,10 +96,25 @@ func (g *guiApp) newProjectDialog() {
 
 // cloneDialog 从支持 otk-remote 协议的网站添加题目。
 func (g *guiApp) cloneDialog() {
-	global := readIni(globalConfigPath())
 	baseEntry := widget.NewEntry()
 	baseEntry.SetPlaceHolder("https://xxxoj.ac")
-	baseEntry.SetText(propsOr(global, "remote", ""))
+	baseEntry.SetText(defaultRemoteBase())
+
+	// 已配置的命名远端直接下拉选择，地址与令牌自动带上。
+	var remoteNames []string
+	for _, r := range listRemotes() {
+		remoteNames = append(remoteNames, r.Name)
+	}
+	remoteSel := widget.NewSelect(remoteNames, func(name string) {
+		for _, r := range listRemotes() {
+			if r.Name == name {
+				baseEntry.SetText(r.Base)
+			}
+		}
+	})
+	if baseEntry.Text == "" && len(remoteNames) == 0 {
+		remoteSel.Hide()
+	}
 
 	idEntry := widget.NewEntry()
 	idEntry.SetPlaceHolder("题号，例如 1001")
@@ -115,11 +130,12 @@ func (g *guiApp) cloneDialog() {
 
 	content := container.NewVBox(
 		widget.NewForm(
+			widget.NewFormItem("已配置远端", remoteSel),
 			widget.NewFormItem("网站地址", baseEntry),
 			widget.NewFormItem("题号", idEntry),
 			widget.NewFormItem("保存到", dirRow),
 		),
-		caption("网站需要支持 otk-remote 协议（见 PROTOCOL.md）。\n会在保存目录下新建 <域名首段>-<题号> 目录，并写入题面样例、时限与远端信息。"),
+		caption("网站需要支持 otk-remote 协议（见 PROTOCOL.md）。\n会在保存目录下新建 <域名首段>-<题号> 目录，并写入题面样例、时限与远端信息。\n令牌按地址自动匹配（设置里可配置多个远端，各自有独立令牌）。"),
 	)
 
 	g.showWideDialog("从网站添加题目", "添加", "取消", content, func() {
@@ -154,17 +170,60 @@ func (g *guiApp) cloneDialog() {
 	})
 }
 
-// settingsDialog 编辑全局配置（外观、编辑器、远端地址、令牌、桌面快捷方式）。
+// settingsDialog 编辑全局配置（外观、编辑器、远端列表、桌面快捷方式）。
+// 远端支持配置多条（名称 + 地址 + 令牌），各自独立。
 func (g *guiApp) settingsDialog() {
 	global := readIni(globalConfigPath())
 
 	editorEntry := widget.NewEntry()
 	editorEntry.SetText(propsOr(global, "editor", defaultEditorCommand()))
-	remoteEntry := widget.NewEntry()
-	remoteEntry.SetText(propsOr(global, "remote", ""))
-	remoteEntry.SetPlaceHolder("https://xxxoj.ac")
-	tokenEntry := widget.NewPasswordEntry()
-	tokenEntry.SetPlaceHolder("留空表示保持原有令牌不变")
+
+	// 远端编辑行：新增行名字可改，已有行名字固定（避免改名带来的歧义）。
+	type remoteRow struct {
+		origName string
+		nameE    *widget.Entry
+		baseE    *widget.Entry
+		tokE     *widget.Entry
+		removed  bool
+		row      *fyne.Container
+	}
+	var rows []*remoteRow
+	rowsBox := container.NewVBox()
+
+	newRow := func(origName, base, token string) *remoteRow {
+		r := &remoteRow{origName: origName}
+		r.nameE = widget.NewEntry()
+		r.nameE.SetPlaceHolder("名称")
+		if origName != "" {
+			r.nameE.SetText(origName)
+			r.nameE.Disable()
+		}
+		r.baseE = widget.NewEntry()
+		r.baseE.SetPlaceHolder("https://xxxoj.ac")
+		r.baseE.SetText(base)
+		r.tokE = widget.NewPasswordEntry()
+		r.tokE.SetPlaceHolder("令牌（留空保持不变）")
+		if token != "" {
+			r.tokE.SetPlaceHolder("令牌已配置（留空保持不变）")
+		}
+		del := deleteIconButton("删除这条远端", func() {})
+		r.row = container.NewStack(container.NewVBox(
+			container.NewBorder(nil, nil, nil, del,
+				container.NewHBox(container.NewGridWithColumns(2, r.nameE, r.baseE))),
+			r.tokE,
+		))
+		del.OnTapped = func() { r.removed = true; r.row.Hide() }
+		rows = append(rows, r)
+		rowsBox.Add(r.row)
+		return r
+	}
+
+	for _, remote := range listRemotes() {
+		newRow(remote.Name, remote.Base, remote.Token)
+	}
+	addRemoteBtn := widget.NewButtonWithIcon("添加远端", theme.ContentAddIcon(), func() {
+		newRow("", "", "")
+	})
 
 	fullscreen := widget.NewCheck("全屏（保留标题栏与右上角窗口按钮）",
 		func(bool) {})
@@ -224,21 +283,27 @@ func (g *guiApp) settingsDialog() {
 				"，与命令行版本 "+filepath.Base(selfExe())+" 互不影响。"),
 		),
 		widget.NewSeparator(),
-		section("编辑器与远端"),
+		section("编辑器"),
 		widget.NewForm(
 			widget.NewFormItem("编辑器命令", editorEntry),
-			widget.NewFormItem("远端地址", remoteEntry),
-			widget.NewFormItem("远端令牌", tokenEntry),
 		),
 		caption("编辑器命令中的 %s 会替换为源码路径，例如 code -g %s。"),
-		caption("配置文件："+globalConfigPath()),
-		container.NewHBox(
-			widget.NewButton("打开配置目录", func() {
-				if err := openPath(baseDir); err != nil {
-					g.showError(err)
-				}
-			}),
-			widget.NewButton("环境诊断", g.diagnosticsDialog),
+		widget.NewSeparator(),
+		section("远端列表"),
+		rowsBox,
+		container.NewHBox(addRemoteBtn),
+		caption("每条远端有独立的地址与令牌；克隆与提交时按地址自动匹配令牌。\n“默认”远端兼容旧版 otk config remote <地址> 的配置。"),
+		widget.NewSeparator(),
+		section("其他"),
+		container.NewVBox(
+			container.NewHBox(
+				widget.NewButton("打开配置目录", func() {
+					if err := openPath(baseDir); err != nil {
+						g.showError(err)
+					}
+				}),
+				widget.NewButton("环境诊断", g.diagnosticsDialog),
+			),
 		),
 	)
 
@@ -257,14 +322,35 @@ func (g *guiApp) settingsDialog() {
 				g.showError(err)
 				return
 			}
-			if _, err := setGlobalConfig("remote", strings.TrimSpace(remoteEntry.Text)); err != nil {
-				g.showError(err)
-				return
-			}
-			if token := strings.TrimSpace(tokenEntry.Text); token != "" {
-				if _, err := setGlobalConfig("remote_token", token); err != nil {
+			// 远端行：先落删除，再保存每行的最新值（令牌留空保持不变）。
+			for _, r := range rows {
+				if r.removed {
+					if r.origName != "" {
+						if err := removeRemote(r.origName); err != nil {
+							g.showError(err)
+							return
+						}
+					}
+					continue
+				}
+				name := strings.TrimSpace(r.nameE.Text)
+				base := strings.TrimSpace(r.baseE.Text)
+				token := strings.TrimSpace(r.tokE.Text)
+				if name == "" && base == "" {
+					continue
+				}
+				if name == "" || base == "" {
+					g.showError(fmt.Errorf("远端“%s”的名称与地址都要填写", name))
+					return
+				}
+				if err := saveRemote(name, base, token); err != nil {
 					g.showError(err)
 					return
+				}
+				// 新增行填了与已有远端相同的名字，或者行内改了地址，
+				// 都以这里保存的为准；改名暂不支持，保持简单。
+				if r.origName != "" && r.origName != name {
+					_ = removeRemote(r.origName)
 				}
 			}
 			// 全屏偏好立即生效，不必重启。
@@ -285,12 +371,28 @@ func (g *guiApp) remoteConfigDialog(p project) {
 	idEntry.SetText(props["remote_id"])
 	idEntry.SetPlaceHolder("题号")
 
+	var remoteNames []string
+	for _, r := range listRemotes() {
+		remoteNames = append(remoteNames, r.Name)
+	}
+	remoteSel := widget.NewSelect(remoteNames, func(name string) {
+		for _, r := range listRemotes() {
+			if r.Name == name {
+				baseEntry.SetText(r.Base)
+			}
+		}
+	})
+	if len(remoteNames) == 0 {
+		remoteSel.Hide()
+	}
+
 	content := container.NewVBox(
 		widget.NewForm(
+			widget.NewFormItem("选择远端", remoteSel),
 			widget.NewFormItem("远端地址", baseEntry),
 			widget.NewFormItem("题号", idEntry),
 		),
-		caption("地址需带协议头。保存后“提交”页会立即使用新配置。"),
+		caption("地址需带协议头。保存后“提交”页会立即使用新配置；\n令牌按地址自动匹配，可在设置里为每个远端单独配置。"),
 	)
 
 	dialog.ShowCustomConfirm("配置远端", "保存", "取消", content, func(ok bool) {

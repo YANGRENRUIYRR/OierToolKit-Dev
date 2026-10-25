@@ -69,6 +69,8 @@ var cmdAlias = map[string]string{
 	"cfg":     "config",
 	"judge":   "judge",
 	"j":       "judge",
+	"history": "history",
+	"his":     "history",
 	"run":     "run",
 	"r":       "run",
 	"debug":   "debug",
@@ -135,6 +137,8 @@ func main() {
 		cmdConfig(args[1:])
 	case "judge":
 		cmdJudge(args[1:])
+	case "history":
+		cmdHistory(args[1:])
 	case "run":
 		requireNoArgs(args[1:], "run")
 		cmdRun()
@@ -296,14 +300,15 @@ func printUsage(w io.Writer) {
   otk config <项> <值>   修改配置
 
 运行:
-  otk judge | j [-v]     编译并评测（-v 显示报错与 WA 详情）
+  otk judge | j [-v] [样例...]  编译并评测（-v 显示报错与 WA 详情；指定样例号只测该点）
+  otk history | his [次数]      最近几次评测结果
   otk run | r            编译并运行
   otk debug | d          gdb 调试
   otk edit | e           编辑源码
   otk stress | ss [N]    对拍
 
 远程 OJ:
-  otk clone [url] <id>   从网站添加题目到 <oj>-<题号> 目录并初始化（协议见 PROTOCOL.md）
+  otk clone [-r 远端名] [地址] <题号>  从网站添加题目（协议见 PROTOCOL.md）
   otk submit | sub [-q]  提交源码评测并等待结果（-q 只提交）
 
 模拟赛:

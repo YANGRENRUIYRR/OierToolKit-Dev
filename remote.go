@@ -27,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -82,10 +83,127 @@ type remoteTestPoint struct {
 	Detail   string `json:"detail"`
 }
 
-// remoteToken 取 Bearer token：环境变量优先，其次全局配置。
+// remoteToken 取 Bearer token：环境变量优先，其次全局配置的旧版令牌。
 func remoteToken() string {
 	if t := os.Getenv("OTK_TOKEN"); t != "" {
 		return t
+	}
+	return propsOr(readIni(globalConfigPath()), "remote_token", "")
+}
+
+// 多远端配置：全局配置文件里，旧版 remote / remote_token 是「默认」远端；
+// 命名远端用 remote.<名> 存地址、token.<名> 存令牌。提交与克隆时按
+// 地址自动匹配令牌。
+
+// legacyRemoteName 是旧版单远端在远端列表里的显示名。
+const legacyRemoteName = "默认"
+
+// remoteDef 是一条远端配置：名称、地址与令牌。
+type remoteDef struct {
+	Name  string
+	Base  string
+	Token string
+}
+
+// listRemotes 列出全部远端（旧版「默认」在前，命名远端按名称排序）。
+func listRemotes() []remoteDef {
+	props := readIni(globalConfigPath())
+	var out []remoteDef
+	if base := props["remote"]; base != "" {
+		out = append(out, remoteDef{Name: legacyRemoteName, Base: base, Token: props["remote_token"]})
+	}
+	var names []string
+	for k := range props {
+		if name := strings.TrimPrefix(k, "remote."); name != k && name != "" {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		out = append(out, remoteDef{Name: name, Base: props["remote."+name], Token: props["token."+name]})
+	}
+	return out
+}
+
+// saveRemote 新建或更新一条远端。token 为空表示保持原令牌不变；
+// 名称为「默认」时写回旧版 remote / remote_token 键。
+func saveRemote(name, base, token string) error {
+	name = strings.TrimSpace(name)
+	base = strings.TrimRight(strings.TrimSpace(base), "/")
+	if name == "" {
+		return fmt.Errorf("远端名称不能为空")
+	}
+	if strings.ContainsAny(name, "=\n") {
+		return fmt.Errorf("远端名称不能含 = 或换行")
+	}
+	if base == "" {
+		return fmt.Errorf("远端地址不能为空")
+	}
+
+	props := readIni(globalConfigPath())
+	if name == legacyRemoteName {
+		if token == "" {
+			token = props["remote_token"]
+		}
+		props["remote"] = base
+		props["remote_token"] = token
+	} else {
+		if token == "" {
+			token = props["token."+name]
+		}
+		props["remote."+name] = base
+		props["token."+name] = token
+	}
+	writeIni(globalConfigPath(), props)
+	return nil
+}
+
+// removeRemote 删除一条远端配置。「默认」清空旧版键。
+func removeRemote(name string) error {
+	props := readIni(globalConfigPath())
+	removed := false
+	if name == legacyRemoteName {
+		removed = props["remote"] != "" || props["remote_token"] != ""
+		delete(props, "remote")
+		delete(props, "remote_token")
+	} else {
+		if _, ok := props["remote."+name]; ok {
+			removed = true
+		}
+		delete(props, "remote."+name)
+		delete(props, "token."+name)
+	}
+	if !removed {
+		return fmt.Errorf("没有名为 '%s' 的远端", name)
+	}
+	writeIni(globalConfigPath(), props)
+	return nil
+}
+
+// defaultRemoteBase 返回默认远端地址：旧版 remote 优先，其次按名称排序的
+// 第一条命名远端。
+func defaultRemoteBase() string {
+	props := readIni(globalConfigPath())
+	if base := props["remote"]; base != "" {
+		return base
+	}
+	for _, r := range listRemotes() {
+		return r.Base
+	}
+	return ""
+}
+
+// tokenForBase 按地址取令牌：环境变量 OTK_TOKEN 优先，其次与该地址匹配
+// 的远端配置，最后回退旧版 remote_token。
+func tokenForBase(base string) string {
+	if t := os.Getenv("OTK_TOKEN"); t != "" {
+		return t
+	}
+	base = strings.TrimRight(base, "/")
+	for _, r := range listRemotes() {
+		if r.Base == base && r.Token != "" {
+			return r.Token
+		}
 	}
 	return propsOr(readIni(globalConfigPath()), "remote_token", "")
 }
@@ -183,19 +301,37 @@ func remoteDo(method, rawURL, token string, body, out any) error {
 
 // cmdClone 像 git clone 一样把题目克隆到 <域名首段>-<题号> 目录：新建目录、
 // 初始化项目、样例落盘入库，并记下远端地址与题号供 submit 使用。
+// -r 可按名称选用配置好的远端，省去输入长地址。
 func cmdClone(args []string) {
-	var base, id string
-	switch len(args) {
+	var base, id, remoteName string
+	rest := args
+	if len(rest) >= 2 && (rest[0] == "-r" || rest[0] == "--remote") {
+		remoteName = rest[1]
+		rest = rest[2:]
+	}
+	switch len(rest) {
 	case 1:
-		id = args[0]
-		base = propsOr(readIni(globalConfigPath()), "remote", "")
+		id = rest[0]
+		base = defaultRemoteBase()
 		if base == "" {
 			fatal("未配置远程地址：otk config remote <地址>，或直接 otk clone <地址> <题号>")
 		}
 	case 2:
-		base, id = args[0], args[1]
+		base, id = rest[0], rest[1]
 	default:
-		fatal("用法: otk clone [<地址>] <题号>")
+		fatal("用法: otk clone [-r 远端名] [<地址>] <题号>")
+	}
+	if remoteName != "" {
+		found := false
+		for _, r := range listRemotes() {
+			if r.Name == remoteName {
+				base, found = r.Base, true
+				break
+			}
+		}
+		if !found {
+			fatal("没有名为 '%s' 的远端（otk config remote ls 查看）", remoteName)
+		}
 	}
 
 	cwd, err := os.Getwd()
@@ -241,7 +377,7 @@ func cloneProblem(parentDir, base, id string) (project, remoteProblem, refreshRe
 	// 网络拿到题目后才建目录，请求失败不留残骸。
 	var prob remoteProblem
 	reqURL := base + remoteAPIPrefix + "/problems/" + url.PathEscape(id)
-	if err := remoteDo("GET", reqURL, remoteToken(), nil, &prob); err != nil {
+	if err := remoteDo("GET", reqURL, tokenForBase(base), nil, &prob); err != nil {
 		return project{}, remoteProblem{}, refreshResult{}, err
 	}
 	if prob.ID == "" {
@@ -389,7 +525,7 @@ func submitSolution(p project, wait bool, onVerdict func(remoteVerdict), stopped
 
 	sub := remoteSubmission{Problem: probID, Language: "cpp", Source: string(src)}
 	var got remoteSubmissionID
-	if err := remoteDo("POST", base+remoteAPIPrefix+"/submissions", remoteToken(), sub, &got); err != nil {
+	if err := remoteDo("POST", base+remoteAPIPrefix+"/submissions", tokenForBase(base), sub, &got); err != nil {
 		return res, err
 	}
 	if got.ID == "" {
@@ -411,7 +547,7 @@ func submitSolution(p project, wait bool, onVerdict func(remoteVerdict), stopped
 		case <-time.After(2 * time.Second):
 		}
 		var v remoteVerdict
-		if err := remoteDo("GET", base+remoteAPIPrefix+"/submissions/"+url.PathEscape(got.ID), remoteToken(), nil, &v); err != nil {
+		if err := remoteDo("GET", base+remoteAPIPrefix+"/submissions/"+url.PathEscape(got.ID), tokenForBase(base), nil, &v); err != nil {
 			return res, err
 		}
 		onVerdict(v)

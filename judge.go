@@ -52,9 +52,11 @@ type pointResult struct {
 	Actual   string
 }
 
-// judgeReport 是一次评测的完整记录。
+// judgeReport 是一次评测的完整记录。Warnings 是编译警告（: warning: 行），
+// 单独列出，不影响 verdict。
 type judgeReport struct {
 	CompileLog string
+	Warnings   []string
 	TimeLimit  float64
 	MemLimit   float64
 	Points     []pointResult
@@ -132,6 +134,8 @@ type judgeJob struct {
 	MemLimit  float64
 	// FileIO 非 nil 时按文件读写题评测；nil 表示标准输入输出。
 	FileIO *fileIO
+	// Checker 非空时启用特殊判题：该值是已编译 checker 的路径。
+	Checker string
 	// Stopped 可为 nil；返回 true 时正在运行的测试点会被立即杀掉并丢弃结果。
 	Stopped func() bool
 }
@@ -257,8 +261,10 @@ func runJudgePoint(job judgeJob, task pointJob) (pointResult, bool) {
 	default:
 		expected := normalizeOutput(readFile(task.out))
 		actual := normalizeOutput(res.stdout)
-		if expected == actual {
+		if expected == actual && job.Checker == "" {
 			pt.Verdict = verdictAC
+		} else if job.Checker != "" {
+			judgeWithChecker(job, &pt, task, res.stdout)
 		} else {
 			pt.Verdict = verdictWA
 			pt.Expected, pt.Actual = expected, actual
@@ -267,16 +273,18 @@ func runJudgePoint(job judgeJob, task pointJob) (pointResult, bool) {
 	return pt, false
 }
 
-// cmdJudge 编译并评测全部样例。默认只显示各测试点结果；-v 附带报错
-// 信息（RE 的 stderr）与 WA 的期望/实际对比。
+// cmdJudge 编译并评测样例。默认只显示各测试点结果；-v 附带报错信息
+// （RE 的 stderr）与 WA 的期望/实际对比。位置参数可选样例编号（带不带 #
+// 均可），只评测指定的测试点。
 func cmdJudge(args []string) {
 	verbose := false
+	var only []string
 	for _, a := range args {
-		switch a {
-		case "-v", "--verbose":
+		switch {
+		case a == "-v", a == "--verbose":
 			verbose = true
 		default:
-			fatal("用法: otk judge [-v]")
+			only = append(only, strings.TrimPrefix(a, "#"))
 		}
 	}
 
@@ -294,9 +302,23 @@ func cmdJudge(args []string) {
 		otkExit(1)
 	}
 	fmt.Println(green + "ok" + reset)
+	warnings := parseWarnings(log)
+
+	checkerExe, ceLog, checkerOK := prepareChecker(p, props)
+	if !checkerOK {
+		fmt.Fprintf(os.Stderr, "%s[CE] checker 编译失败%s\n", red, reset)
+		fmt.Fprint(os.Stderr, ceLog)
+		otkExit(1)
+	}
 
 	timeLimit, memLimit := judgeLimits(props)
 	index := readIndex(p)
+	if len(only) > 0 {
+		index = filterIndex(index, only)
+		if len(index) == 0 {
+			fatal("没有匹配的样例")
+		}
+	}
 	if len(index) == 0 {
 		fatal("无样例（放入 .in 与 .out/.ans 后运行 otk refresh）")
 	}
@@ -306,7 +328,11 @@ func cmdJudge(args []string) {
 	if threads > 1 {
 		threadNote = fmt.Sprintf(" · %d 线程", threads)
 	}
-	fmt.Printf("评测 %s (%.2fs / %.0fMB%s)\n", p.codeName(), timeLimit, memLimit, threadNote)
+	spjNote := ""
+	if checkerExe != "" {
+		spjNote = " · 特殊判题"
+	}
+	fmt.Printf("评测 %s (%.2fs / %.0fMB%s%s)\n", p.codeName(), timeLimit, memLimit, threadNote, spjNote)
 
 	job := judgeJob{
 		ExePath:   p.exePath(),
@@ -316,6 +342,7 @@ func cmdJudge(args []string) {
 		TimeLimit: timeLimit,
 		MemLimit:  memLimit,
 		FileIO:    fileIOFromProps(props, p.codeName()),
+		Checker:   checkerExe,
 	}
 	var mu sync.Mutex // 并发回调下保证每行输出完整
 	rep := evalSamples(job, func(pt pointResult) {
@@ -324,10 +351,58 @@ func cmdJudge(args []string) {
 		printJudgePoint(pt, widest(index, 3), timeLimit, verbose)
 	}, nil)
 	rep.CompileLog = log
+	rep.Warnings = warnings
+
+	if len(warnings) > 0 {
+		fmt.Printf("%s编译警告 %d 条%s\n", yellow, len(warnings), reset)
+		if verbose {
+			for _, w := range warnings {
+				printIndented(w, "  ")
+			}
+		}
+	}
+	if len(only) == 0 {
+		// 单点重测不进历史，完整评测才记录。
+		appendHistory(p, rep)
+	}
 
 	if !rep.allAC() {
 		otkExit(1)
 	}
+}
+
+// filterIndex 从样例索引里挑出指定的编号，保持索引顺序。未知的编号报错。
+func filterIndex(index, want []string) []string {
+	inIndex := map[string]bool{}
+	for _, id := range index {
+		inIndex[id] = true
+	}
+	for _, id := range want {
+		if !inIndex[id] {
+			fatal("样例 #%s 不存在（可用: %s）", id, strings.Join(index, " "))
+		}
+	}
+	var kept []string
+	for _, id := range index {
+		for _, w := range want {
+			if id == w {
+				kept = append(kept, id)
+				break
+			}
+		}
+	}
+	return kept
+}
+
+// parseWarnings 从编译输出里挑出警告行（file:line:col: warning: ...）。
+func parseWarnings(log string) []string {
+	var out []string
+	for _, l := range strings.Split(log, "\n") {
+		if strings.Contains(l, ": warning:") {
+			out = append(out, strings.TrimRight(l, "\r"))
+		}
+	}
+	return out
 }
 
 // printJudgePoint 以 CLI 风格输出一个测试点。
@@ -350,7 +425,12 @@ func printJudgePoint(pt pointResult, width int, timeLimit float64, verbose bool)
 	default:
 		fmt.Printf("  #%-*s %sWA%s    %s\n", width, pt.ID, red, reset, metrics)
 		if verbose {
-			printDiff(pt.Expected, pt.Actual)
+			if pt.Detail != "" && pt.Expected == "" && pt.Actual == "" {
+				// 特殊判题：展示 checker 的反馈而不是 diff。
+				printIndented(pt.Detail, "    ")
+			} else {
+				printDiff(pt.Expected, pt.Actual)
+			}
 		}
 	}
 }
@@ -428,6 +508,20 @@ func exePathIn(dir, name string) string {
 	return exe
 }
 
+// compileArgs 依据项目配置组装 g++ 参数：语言标准、O2、用户自定义额外
+// 参数（cflags，如 "-Wall"）与调试信息。
+func compileArgs(srcPath, exePath string, props map[string]string) []string {
+	args := []string{"-std=" + propsOr(props, "version", "c++17")}
+	if propsOr(props, "o2", "1") == "1" {
+		args = append(args, "-O2")
+	}
+	if extra := strings.TrimSpace(props["cflags"]); extra != "" {
+		args = append(args, splitQuoted(extra)...)
+	}
+	args = append(args, srcPath, "-o", exePath, "-g")
+	return args
+}
+
 // compileProjectTo 编译源码，返回编译器输出与是否成功。
 // 用 CombinedOutput 同时收 stdout 与 stderr：不同平台/编译器把诊断信息
 // 写到哪一路并不一致，只接 stderr 偶尔会拿不到错误原因。
@@ -439,11 +533,7 @@ func compileProjectTo(srcPath, exePath string, props map[string]string) (string,
 // compileProjectStopped 在编译过程中响应停止信号：一旦 stopped 返回 true
 // 就杀掉 g++。第三个返回值表示是否被中断（此时 ok 无意义）。
 func compileProjectStopped(srcPath, exePath string, props map[string]string, stopped func() bool) (string, bool, bool) {
-	args := []string{"-std=" + propsOr(props, "version", "c++17")}
-	if propsOr(props, "o2", "1") == "1" {
-		args = append(args, "-O2")
-	}
-	args = append(args, srcPath, "-o", exePath, "-g")
+	args := compileArgs(srcPath, exePath, props)
 
 	cmd := exec.Command("g++", args...)
 	hideProcWindow(cmd)
@@ -485,13 +575,7 @@ func compileProjectStopped(srcPath, exePath string, props map[string]string, sto
 
 // compileProject 使用项目配置编译源码，始终附带 -g 以便 gdb 调试。
 func compileProject(srcPath, exePath string, props map[string]string) bool {
-	args := []string{"-std=" + propsOr(props, "version", "c++17")}
-	if propsOr(props, "o2", "1") == "1" {
-		args = append(args, "-O2")
-	}
-	args = append(args, srcPath, "-o", exePath, "-g")
-
-	cmd := exec.Command("g++", args...)
+	cmd := exec.Command("g++", compileArgs(srcPath, exePath, props)...)
 	hideProcWindow(cmd)
 	var errBuf strings.Builder
 	cmd.Stderr = &errBuf
