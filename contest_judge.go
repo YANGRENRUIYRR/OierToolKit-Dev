@@ -132,6 +132,12 @@ func contestParallelism() int {
 // judgeContest 评测整场比赛。每个 (选手, 题目) 组合并发编译并跑完全部
 // 测试点；emit 可能被任意 goroutine 调用，调用方需自行同步。
 func judgeContest(c contest, emit func(judgeEvent), stopped func() bool) (contestResult, error) {
+	// 统一转绝对路径：exec 的相对 cmd.Dir 在 Windows 上会直接失败
+	// （fork/exec cannot find the path），也不能依赖进程当前目录不变。
+	if abs, err := filepath.Abs(c.Dir); err == nil {
+		c.Dir = abs
+	}
+
 	res := contestResult{
 		ContestName: c.Cfg.Name,
 		JudgedAt:    nowStamp(),
@@ -156,6 +162,23 @@ func judgeContest(c contest, emit func(judgeEvent), stopped func() bool) (contes
 	// 停止时直接把整个构建目录删掉：Windows 上正在运行的 exe 删不掉，
 	// 但编译产物通常已经写完，删不掉也无妨，下次评测会覆盖。
 	defer os.RemoveAll(buildDir)
+
+	// 特殊判题：每道开了 SPJ 的题编译一次 checker，所有选手共用。
+	checkers := map[string]string{}
+	for _, p := range c.Cfg.Problems {
+		if !c.spjActive(p) {
+			continue
+		}
+		exe := filepath.Join(buildDir, "checker__"+sanitizeFileName(p.Name)+exeSuffix())
+		log, ok, _ := compileProjectStopped(c.checkerSourceOf(p.Name), exe,
+			map[string]string{"version": "c++17"}, stopped)
+		if ok {
+			checkers[p.Name] = exe
+		} else if emit != nil {
+			emit(judgeEvent{Kind: judgeCompile, Problem: p.Name,
+				Message: fmt.Sprintf("%s：checker 编译失败，本题退回普通比对\n%s", p.Name, log)})
+		}
+	}
 
 	parallel := contestParallelism()
 	total := len(sources)
@@ -189,7 +212,7 @@ func judgeContest(c contest, emit func(judgeEvent), stopped func() bool) (contes
 			if !ok {
 				return
 			}
-			out, aborted := judgeSubmission(c, prob, src, buildDir, stopped)
+			out, aborted := judgeSubmission(c, prob, src, buildDir, checkers[prob.Name], stopped)
 			if aborted {
 				return
 			}
@@ -223,7 +246,8 @@ func judgeContest(c contest, emit func(judgeEvent), stopped func() bool) (contes
 }
 
 // judgeSubmission 编译并评测一份提交。第二个返回值表示是否被中途停止。
-func judgeSubmission(c contest, prob contestProblem, src contestSource, buildDir string, stopped func() bool) (problemResult, bool) {
+// checker 非空时按特殊判题判定（SPJ 关闭或 checker 缺失时为空串）。
+func judgeSubmission(c contest, prob contestProblem, src contestSource, buildDir, checker string, stopped func() bool) (problemResult, bool) {
 	out := problemResult{Player: src.Player, Problem: src.Problem}
 
 	srcPath := filepath.Join(c.Dir, filepath.FromSlash(src.Path))
@@ -315,7 +339,18 @@ func judgeSubmission(c contest, prob contestProblem, src contestSource, buildDir
 		case run.memOK && run.memMB > memCap:
 			to.Verdict = verdictMLE
 		default:
-			if normalizeOutput(run.stdout) == normalizeOutput(readFile(ansPath)) {
+			if checker != "" {
+				// 特殊判题：checker 认可才算通过，反馈写进 Message。
+				if ok, msg := spjRunOnOutput(checker, inPath, run.stdout, ansPath); ok {
+					to.Verdict = verdictAC
+					if msg != "" {
+						to.Message = msg
+					}
+				} else {
+					to.Verdict = verdictWA
+					to.Message = msg
+				}
+			} else if normalizeOutput(run.stdout) == normalizeOutput(readFile(ansPath)) {
 				to.Verdict = verdictAC
 			} else {
 				to.Verdict = verdictWA

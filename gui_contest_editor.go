@@ -215,6 +215,13 @@ func (e *contestEditor) showProblem() {
 		p.updateProblem(e.selected, func(pr *contestProblem) { pr.IOOut = strings.TrimSpace(v) })
 	}
 
+	// 特殊判题：data/<题目>/checker.cpp（checker <输入> <选手输出> <期望输出>）。
+	spjChk := widget.NewCheck("特殊判题（checker.cpp）", nil)
+	spjChk.SetChecked(prob.SPJ)
+	spjChk.OnChanged = func(v bool) {
+		p.updateProblem(e.selected, func(pr *contestProblem) { pr.SPJ = v })
+	}
+
 	e.buildSubtasks(prob)
 	e.buildTests(prob)
 	e.refreshSummary()
@@ -226,6 +233,8 @@ func (e *contestEditor) showProblem() {
 			widget.NewFormItem("时限（秒）", timeIn),
 			widget.NewFormItem("内存（MB）", memIn),
 			widget.NewFormItem("输入输出", container.NewVBox(ioChk, ioIn, ioOut)),
+			widget.NewFormItem("特殊判题", container.NewVBox(spjChk,
+				caption("把 checker.cpp 放进 data/"+prob.Name+"/，约定：\nchecker <输入> <选手输出> <期望输出>，退出码 0 为 AC。"))),
 		),
 		e.scoreSum,
 		widget.NewSeparator(),
@@ -453,6 +462,11 @@ func (e *contestEditor) refreshSummary() {
 					warns = append(warns, fmt.Sprintf("子任务「%s」引用了不存在的测试点 %s。", st.Name, id))
 				}
 			}
+		}
+	}
+	if len(warns) == 0 {
+		if prob.SPJ && !e.page.c.spjActive(prob) {
+			warns = append(warns, "开了特殊判题，但 data/"+prob.Name+"/checker.cpp 不存在，评测会退回普通比对。")
 		}
 	}
 	if len(warns) == 0 {

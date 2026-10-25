@@ -115,28 +115,28 @@ func exitCodeOf(err error) int {
 	return -1
 }
 
-// judgeWithChecker 在普通判定之后追加特殊判题：把选手输出落成临时文件，
-// 连同输入与期望输出一起交给 checker。只在 stdout/stdin 类判定（default
-// 分支）之后调用，TLE/MLE/RE 不再问 checker。
-func judgeWithChecker(job judgeJob, pt *pointResult, task pointJob, stdout string) {
-	tmp, err := os.CreateTemp(job.Dir, ".otk-chk-*.out")
+// spjRunOnOutput 把选手输出（内存中的字符串）落成临时文件后调用 checker，
+// 返回是否通过与反馈文本。文件读写与标准输入输出两种模式共用。
+func spjRunOnOutput(checker, inPath, stdout, expectedPath string) (bool, string) {
+	tmp, err := os.CreateTemp(filepath.Dir(expectedPath), ".otk-chk-*.out")
 	if err != nil {
-		pt.Verdict = verdictWA
-		pt.Detail = "无法写出选手输出供 checker 使用: " + err.Error()
-		return
+		return false, "无法写出选手输出供 checker 使用: " + err.Error()
 	}
 	actualPath := tmp.Name()
 	if _, err := tmp.WriteString(stdout); err != nil {
 		tmp.Close()
 		_ = os.Remove(actualPath)
-		pt.Verdict = verdictWA
-		pt.Detail = "无法写出选手输出供 checker 使用: " + err.Error()
-		return
+		return false, "无法写出选手输出供 checker 使用: " + err.Error()
 	}
 	tmp.Close()
 	defer os.Remove(actualPath)
+	return runChecker(checker, inPath, actualPath, expectedPath)
+}
 
-	ok, msg := runChecker(job.Checker, task.in, actualPath, task.out)
+// judgeWithChecker 在普通判定之后追加特殊判题。只在 stdout/stdin 类判定
+// （default 分支）之后调用，TLE/MLE/RE 不再问 checker。
+func judgeWithChecker(job judgeJob, pt *pointResult, task pointJob, stdout string) {
+	ok, msg := spjRunOnOutput(job.Checker, task.in, stdout, task.out)
 	if ok {
 		pt.Verdict = verdictAC
 		pt.Detail = msg

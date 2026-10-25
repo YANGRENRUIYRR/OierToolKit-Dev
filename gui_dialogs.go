@@ -208,8 +208,9 @@ func (g *guiApp) settingsDialog() {
 		}
 		del := deleteIconButton("删除这条远端", func() {})
 		r.row = container.NewStack(container.NewVBox(
-			container.NewBorder(nil, nil, nil, del,
-				container.NewHBox(container.NewGridWithColumns(2, r.nameE, r.baseE))),
+			// 名称固定宽，地址占满剩余宽度：远端行不会被压成一条缝。
+			container.NewBorder(nil, nil,
+				container.NewGridWrap(fyne.NewSize(150, 34), r.nameE), del, r.baseE),
 			r.tokE,
 		))
 		del.OnTapped = func() { r.removed = true; r.row.Hide() }

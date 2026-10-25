@@ -75,8 +75,19 @@ type contestProblem struct {
 	IOFile   bool             `json:"io_file,omitempty"` // 文件读写题
 	IOIn     string           `json:"io_in,omitempty"`   // 输入文件名，空为 <题目名>.in
 	IOOut    string           `json:"io_out,omitempty"`  // 输出文件名，空为 <题目名>.out
+	SPJ      bool             `json:"spj,omitempty"`     // 特殊判题：data/<题目>/checker.cpp
 	Tests    []testPoint      `json:"tests"`             // 测试点
 	Subtasks []contestSubtask `json:"subtasks"`          // 子任务；为空表示每点独立计分
+}
+
+// checkerSourceOf 返回某道题的 checker 源码路径（约定放在 data/<题目>/ 下）。
+func (c contest) checkerSourceOf(problem string) string {
+	return filepath.Join(c.problemsDir(problem), checkerSourceName)
+}
+
+// spjActive 判断某道题是否实际启用特殊判题（开了开关且 checker.cpp 存在）。
+func (c contest) spjActive(prob contestProblem) bool {
+	return prob.SPJ && fileExists(c.checkerSourceOf(prob.Name))
 }
 
 // contestPlayer 是一名选手。
