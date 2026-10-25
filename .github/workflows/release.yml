@@ -75,6 +75,11 @@ jobs:
           # 这样 exe 在资源管理器里才有图标与文件属性。
           go run github.com/josephspurrier/goversioninfo/cmd/goversioninfo@latest -o resource_windows_amd64.syso versioninfo.json
 
+      # 测试进版本库后 CI 也要跑：拦平台相关回归（如 cgo 头文件缺失之类
+      # 的问题在构建期就能暴露，逻辑回归靠测试）。失败则整个平台标红。
+      - name: Test
+        run: go test ./...
+
       - name: Build binary (Linux/macOS)
         if: matrix.os != 'windows'
         env:
