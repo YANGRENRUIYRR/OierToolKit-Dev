@@ -22,7 +22,6 @@ import (
 	"image/color"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 )
 
@@ -42,11 +41,7 @@ var guiFont = fyne.NewStaticResource("NotoSansSC-Regular.ttf", guiFontData)
 //go:embed assets/lang/base.zh_Hans.json
 var guiZhLangData []byte
 
-// installTranslations 把内置中文词条注册到 Fyne 语言包。加载失败不影响
-// 使用（只会退回英文原文），因此错误被忽略。
-func installTranslations() {
-	_ = lang.AddTranslationsForLocale(guiZhLangData, fyne.Locale("zh-Hans"))
-}
+// installTranslations 在 i18n.go 中实现（随界面语言偏好决定是否注册中文）。
 
 // 界面配色：强调色沿用品牌蓝，浅色偏冷灰、深色压暗，避免大块纯白刺眼。
 var (

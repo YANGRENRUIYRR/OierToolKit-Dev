@@ -49,19 +49,19 @@ func newSourcePage(pg *projectPage) *sourcePage {
 	s.editor.Wrapping = fyne.TextWrapOff
 	s.editor.OnChanged = s.onChanged
 
-	saveBtn := widget.NewButtonWithIcon("保存", theme.DocumentSaveIcon(), s.save)
-	reloadBtn := widget.NewButtonWithIcon("重新加载", theme.ViewRefreshIcon(), s.reload)
-	extBtn := widget.NewButtonWithIcon("外部编辑器", theme.DocumentCreateIcon(), func() {
+	saveBtn := widget.NewButtonWithIcon(tr("保存"), theme.DocumentSaveIcon(), s.save)
+	reloadBtn := widget.NewButtonWithIcon(tr("重新加载"), theme.ViewRefreshIcon(), s.reload)
+	extBtn := widget.NewButtonWithIcon(tr("外部编辑器"), theme.DocumentCreateIcon(), func() {
 		if err := launchEditor(pg.p); err != nil {
 			pg.g.showError(err)
 		}
 	})
-	gdbBtn := widget.NewButtonWithIcon("gdb 调试", theme.ComputerIcon(), func() {
+	gdbBtn := widget.NewButtonWithIcon(tr("gdb 调试"), theme.ComputerIcon(), func() {
 		if err := launchGdb(pg.p); err != nil {
 			pg.g.showError(err)
 		}
 	})
-	statsBtn := widget.NewButtonWithIcon("统计", theme.InfoIcon(), s.showStats)
+	statsBtn := widget.NewButtonWithIcon(tr("统计"), theme.InfoIcon(), s.showStats)
 
 	head := container.NewBorder(nil, nil, nil,
 		container.NewHBox(saveBtn, reloadBtn, extBtn, gdbBtn, statsBtn),

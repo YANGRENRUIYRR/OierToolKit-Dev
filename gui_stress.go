@@ -19,13 +19,16 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -35,15 +38,16 @@ type stressPage struct {
 	pg      *projectPage
 	content fyne.CanvasObject
 
-	rounds   *widget.Entry
-	keepChk  *widget.Check
-	startBtn *widget.Button
-	stopBtn  *widget.Button
-	bar      *widget.ProgressBar
-	status   *widget.Label
-	detail   *widget.Label
-	dataBtn  *widget.Button
-	saveBtn  *widget.Button
+	rounds    *widget.Entry
+	keepChk   *widget.Check
+	startBtn  *widget.Button
+	stopBtn   *widget.Button
+	bar       *widget.ProgressBar
+	status    *widget.Label
+	detail    *widget.Label
+	dataBtn   *widget.Button
+	saveBtn   *widget.Button
+	manageBtn *widget.Button
 
 	lastRes *stressResult
 
@@ -79,22 +83,24 @@ func newStressPage(pg *projectPage) *stressPage {
 	s.bar = widget.NewProgressBar()
 	s.bar.Hide()
 
-	s.startBtn = widget.NewButtonWithIcon("开始对拍", theme.MediaPlayIcon(), s.run)
+	s.startBtn = widget.NewButtonWithIcon(tr("开始对拍"), theme.MediaPlayIcon(), s.run)
 	s.startBtn.Importance = widget.HighImportance
-	s.stopBtn = widget.NewButtonWithIcon("停止", theme.MediaStopIcon(), s.stop)
+	s.stopBtn = widget.NewButtonWithIcon(tr("停止"), theme.MediaStopIcon(), s.stop)
 	s.stopBtn.Disable()
 
-	s.dataBtn = widget.NewButtonWithIcon("打开 .stress 目录", theme.FolderOpenIcon(), func() {
+	s.dataBtn = widget.NewButtonWithIcon(tr("打开 .stress 目录"), theme.FolderOpenIcon(), func() {
 		if err := openPath(filepath.Join(s.pg.p.Dir, ".stress")); err != nil {
 			s.pg.g.showError(err)
 		}
 	})
 	s.dataBtn.Disable()
 
-	s.saveBtn = widget.NewButtonWithIcon("存为样例", theme.ContentAddIcon(), s.saveCounterexample)
+	s.saveBtn = widget.NewButtonWithIcon(tr("存为样例"), theme.ContentAddIcon(), s.saveCounterexample)
 	s.saveBtn.Disable()
 
-	s.keepChk = widget.NewCheck("发现反例后继续收集", nil)
+	s.manageBtn = widget.NewButtonWithIcon(tr("管理反例"), theme.StorageIcon(), s.manageDialog)
+
+	s.keepChk = widget.NewCheck(tr("发现反例后继续收集"), nil)
 
 	form := container.NewBorder(nil, nil,
 		container.NewHBox(caption("轮数"), container.NewGridWrap(fyne.NewSize(110, 36), s.rounds), s.keepChk),
@@ -110,7 +116,7 @@ func newStressPage(pg *projectPage) *stressPage {
 	)
 
 	bottom := container.NewPadded(container.NewBorder(nil, nil, nil,
-		container.NewHBox(s.saveBtn, s.dataBtn),
+		container.NewHBox(s.saveBtn, s.manageBtn, s.dataBtn),
 		caption("反例数据保存为 <轮次>.in / .ans / .out，可一键存为样例后在评测页复测")))
 	s.content = container.NewBorder(head, bottom, nil, nil, container.NewVScroll(s.detail))
 	s.reload()
@@ -216,6 +222,129 @@ func (s *stressPage) saveCounterexample() {
 		return
 	}
 	s.pg.g.setStatus(fmt.Sprintf("已把第 %d 轮反例存为样例 #%s（含期望输出）", res.FailRound, id))
+}
+
+// stressRounds 列出 .stress 目录里已有的反例轮次（升序）。
+func stressRounds(dir string) []string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	var rounds []string
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".in") {
+			continue
+		}
+		round := strings.TrimSuffix(name, ".in")
+		if round != "" && !seen[round] {
+			seen[round] = true
+			rounds = append(rounds, round)
+		}
+	}
+	sort.Slice(rounds, func(i, j int) bool { return rounds[i] < rounds[j] })
+	return rounds
+}
+
+// manageDialog 打开反例管理器：左侧反例列表，右侧内容与操作。
+func (s *stressPage) manageDialog() {
+	dir := filepath.Join(s.pg.p.Dir, ".stress")
+	var d dialog.Dialog
+
+	detail := widget.NewLabel("")
+	detail.TextStyle = fyne.TextStyle{Monospace: true}
+	detail.Wrapping = fyne.TextWrapWord
+
+	saveBtn := widget.NewButton("存为样例", nil)
+	delBtn := widget.NewButton("删除本轮", nil)
+	actions := container.NewHBox(saveBtn, delBtn)
+
+	list := widget.NewList(
+		func() int { return len(stressRounds(dir)) },
+		func() fyne.CanvasObject { return widget.NewLabel("#0000") },
+		func(id widget.ListItemID, obj fyne.CanvasObject) {
+			rounds := stressRounds(dir)
+			if id < 0 || id >= len(rounds) {
+				return
+			}
+			obj.(*widget.Label).SetText("第 " + rounds[id] + " 轮")
+		},
+	)
+	load := func(round string) {
+		var b strings.Builder
+		if data, err := os.ReadFile(filepath.Join(dir, round+".in")); err == nil {
+			fmt.Fprintf(&b, "输入：\n%s\n", clip(string(data)))
+		}
+		if data, err := os.ReadFile(filepath.Join(dir, round+".ans")); err == nil {
+			fmt.Fprintf(&b, "期望输出：\n%s\n", clip(string(data)))
+		}
+		if data, err := os.ReadFile(filepath.Join(dir, round+".out")); err == nil {
+			fmt.Fprintf(&b, "实际输出：\n%s\n", clip(string(data)))
+		}
+		detail.SetText(b.String())
+	}
+
+	current := ""
+	list.OnSelected = func(id widget.ListItemID) {
+		rounds := stressRounds(dir)
+		if id < 0 || id >= len(rounds) {
+			return
+		}
+		current = rounds[id]
+		load(current)
+		saveBtn.Enable()
+		delBtn.Enable()
+	}
+
+	saveBtn.OnTapped = func() {
+		if current == "" || !fileExists(filepath.Join(dir, current+".in")) {
+			return
+		}
+		round := current
+		inData, _ := os.ReadFile(filepath.Join(dir, round+".in"))
+		ansData, _ := os.ReadFile(filepath.Join(dir, round+".ans"))
+		id := nextSampleID(readIndex(s.pg.p))
+		if err := writeSample(s.pg.p, id, string(inData), string(ansData)); err != nil {
+			s.pg.g.showError(err)
+			return
+		}
+		s.pg.g.setStatus(fmt.Sprintf("已把第 %s 轮反例存为样例 #%s", round, id))
+	}
+	delBtn.OnTapped = func() {
+		if current == "" {
+			return
+		}
+		round := current
+		dialog.ShowConfirm("删除反例", "将删除第 "+round+" 轮的 .in/.ans/.out 文件，确定吗？", func(ok bool) {
+			if !ok {
+				return
+			}
+			for _, ext := range []string{".in", ".ans", ".out"} {
+				_ = os.Remove(filepath.Join(dir, round+ext))
+			}
+			current = ""
+			detail.SetText("")
+			saveBtn.Disable()
+			delBtn.Disable()
+			list.Refresh()
+			s.pg.g.setStatus("已删除第 " + round + " 轮反例")
+		}, s.pg.g.win)
+	}
+
+	if len(stressRounds(dir)) == 0 {
+		body := container.NewVBox(caption(".stress 目录里还没有反例。\n跑一次对拍，发现反例后会自动保存到这里。"))
+		d = dialog.NewCustom("管理反例", "关闭", container.NewPadded(body), s.pg.g.win)
+	} else {
+		body := container.NewHSplit(
+			container.NewVScroll(list),
+			container.NewVScroll(container.NewVBox(detail, widget.NewSeparator(), actions)),
+		)
+		body.SetOffset(0.22)
+		d = dialog.NewCustom("管理反例（.stress）", "关闭", body, s.pg.g.win)
+	}
+	d.Resize(fyne.NewSize(680, 460))
+	d.Show()
 }
 
 // stop 请求中断对拍。

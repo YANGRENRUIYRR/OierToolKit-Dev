@@ -268,11 +268,17 @@ func (g *guiApp) settingsDialog() {
 		g.setStatus("桌面快捷方式已删除")
 	})
 
+	langSel := widget.NewSelect(languageChoices, nil)
+	langSel.SetSelected(languageChoiceFromValue(guiPref(prefLang, "auto")))
+	langNote := caption("语言改动在重启应用后生效。")
+
 	content := container.NewVBox(
 		section("外观"),
 		widget.NewForm(
 			widget.NewFormItem("窗口模式", fullscreen),
+			widget.NewFormItem("界面语言", langSel),
 		),
+		langNote,
 		caption("全屏会保留系统标题栏和右上角的最小化、最大化、关闭按钮；"+
 			"也可以用 F11 随时切换，Esc 退出全屏。"),
 		widget.NewSeparator(),
@@ -318,6 +324,12 @@ func (g *guiApp) settingsDialog() {
 			if err := setGuiPrefBool(prefFullscreen, fullscreen.Checked); err != nil {
 				g.showError(err)
 				return
+			}
+			if langSel.Selected != "" {
+				if err := setGuiPref(prefLang, languageValueFromChoice(langSel.Selected)); err != nil {
+					g.showError(err)
+					return
+				}
 			}
 			if _, err := setGlobalConfig("editor", strings.TrimSpace(editorEntry.Text)); err != nil {
 				g.showError(err)

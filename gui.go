@@ -167,7 +167,7 @@ func (g *guiApp) registerShortcuts(c fyne.Canvas) {
 	}
 	add(fyne.KeyB, func() { g.shortcutCompile() })
 	add(fyne.KeyJ, func() { g.shortcutJudge() })
-	for i, k := range []fyne.KeyName{fyne.Key1, fyne.Key2, fyne.Key3, fyne.Key4, fyne.Key5, fyne.Key6} {
+	for i, k := range []fyne.KeyName{fyne.Key1, fyne.Key2, fyne.Key3, fyne.Key4, fyne.Key5, fyne.Key6, fyne.Key7} {
 		idx := i
 		add(k, func() {
 			if g.sheet != nil || g.page == nil {
@@ -183,7 +183,7 @@ func (g *guiApp) shortcutCompile() {
 	if g.sheet != nil || g.page == nil || g.page.judge == nil {
 		return
 	}
-	g.page.selectTab(3)
+	g.page.selectTab(4)
 	g.page.judge.compileOnly()
 }
 
@@ -192,7 +192,7 @@ func (g *guiApp) shortcutJudge() {
 	if g.sheet != nil || g.page == nil || g.page.judge == nil {
 		return
 	}
-	g.page.selectTab(3)
+	g.page.selectTab(4)
 	g.page.judge.run()
 }
 
@@ -537,6 +537,7 @@ type projectPage struct {
 	tabs     *container.AppTabs
 	overview *overviewPage
 	source   *sourcePage
+	stmt     *statementPage
 	samples  *samplesPage
 	judge    *judgePage
 	stress   *stressPage
@@ -548,18 +549,20 @@ func newProjectPage(g *guiApp, dir string) *projectPage {
 
 	pg.overview = newOverviewPage(pg)
 	pg.source = newSourcePage(pg)
+	pg.stmt = newStatementPage(pg)
 	pg.samples = newSamplesPage(pg)
 	pg.judge = newJudgePage(pg)
 	pg.stress = newStressPage(pg)
 	pg.submit = newSubmitPage(pg)
 
 	tabs := container.NewAppTabs(
-		container.NewTabItemWithIcon("概览", theme.HomeIcon(), pg.overview.content),
-		container.NewTabItemWithIcon("源码", theme.DocumentIcon(), pg.source.content),
-		container.NewTabItemWithIcon("样例", theme.ListIcon(), pg.samples.content),
-		container.NewTabItemWithIcon("评测", theme.MediaPlayIcon(), pg.judge.content),
-		container.NewTabItemWithIcon("对拍", theme.ViewRefreshIcon(), pg.stress.content),
-		container.NewTabItemWithIcon("提交", theme.UploadIcon(), pg.submit.content),
+		container.NewTabItemWithIcon(tr("概览"), theme.HomeIcon(), pg.overview.content),
+		container.NewTabItemWithIcon(tr("源码"), theme.DocumentIcon(), pg.source.content),
+		container.NewTabItemWithIcon(tr("题面"), theme.FileTextIcon(), pg.stmt.content),
+		container.NewTabItemWithIcon(tr("样例"), theme.ListIcon(), pg.samples.content),
+		container.NewTabItemWithIcon(tr("评测"), theme.MediaPlayIcon(), pg.judge.content),
+		container.NewTabItemWithIcon(tr("对拍"), theme.ViewRefreshIcon(), pg.stress.content),
+		container.NewTabItemWithIcon(tr("提交"), theme.UploadIcon(), pg.submit.content),
 	)
 	tabs.SetTabLocation(container.TabLocationTop)
 
@@ -568,7 +571,7 @@ func newProjectPage(g *guiApp, dir string) *projectPage {
 	return pg
 }
 
-// selectTab 切到指定下标的功能页（0=概览 1=源码 2=样例 3=评测 4=对拍 5=提交）。
+// selectTab 切到指定下标的功能页（0=概览 1=源码 2=题面 3=样例 4=评测 5=对拍 6=提交）。
 func (pg *projectPage) selectTab(i int) {
 	if pg.tabs != nil && i >= 0 && i < len(pg.tabs.Items) {
 		pg.tabs.SelectIndex(i)

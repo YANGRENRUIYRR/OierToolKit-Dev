@@ -46,9 +46,10 @@ type contestPage struct {
 	bar     *widget.ProgressBar
 	detail  *widget.Label
 
-	judgeBtn  *widget.Button
-	stopBtn   *widget.Button
-	exportBtn *widget.Button
+	judgeBtn     *widget.Button
+	stopBtn      *widget.Button
+	exportBtn    *widget.Button
+	exportCsvBtn *widget.Button
 
 	editor      *contestEditor
 	boardHolder *fyne.Container
@@ -70,7 +71,7 @@ func newContestPage(g *guiApp, c contest) *contestPage {
 	p.warns = validateContest(c)
 
 	btns := container.NewHBox(
-		widget.NewButtonWithIcon("返回比赛列表", theme.NavigateBackIcon(), g.showContestList),
+		widget.NewButtonWithIcon(tr("返回比赛列表"), theme.NavigateBackIcon(), g.showContestList),
 		layout.NewSpacer(),
 	)
 
@@ -95,19 +96,21 @@ func newContestPage(g *guiApp, c contest) *contestPage {
 	// 否则会出现内容溢出却滚不动的现象。
 	p.boardScroll.SetMinSize(fyne.NewSize(560, 320))
 
-	p.judgeBtn = widget.NewButtonWithIcon("开始评测", theme.MediaPlayIcon(), p.startJudge)
+	p.judgeBtn = widget.NewButtonWithIcon(tr("开始评测"), theme.MediaPlayIcon(), p.startJudge)
 	p.judgeBtn.Importance = widget.HighImportance
-	p.stopBtn = widget.NewButtonWithIcon("停止", theme.MediaStopIcon(), p.stopJudge)
+	p.stopBtn = widget.NewButtonWithIcon(tr("停止"), theme.MediaStopIcon(), p.stopJudge)
 	p.stopBtn.Disable()
-	p.exportBtn = widget.NewButtonWithIcon("导出 HTML 榜单", theme.DownloadIcon(), p.exportHTML)
+	p.exportBtn = widget.NewButtonWithIcon(tr("导出 HTML 榜单"), theme.DownloadIcon(), p.exportHTML)
 	p.exportBtn.Disable()
+	p.exportCsvBtn = widget.NewButtonWithIcon(tr("导出 CSV"), theme.GridIcon(), p.exportCSV)
+	p.exportCsvBtn.Disable()
 
 	head := container.NewVBox(
 		container.NewPadded(btns),
 		container.NewPadded(container.NewVBox(p.title, p.meta)),
 		// 按钮行只放按钮：状态文字单独占一行，否则进度信息会把整行
 		// 撑宽，连带挤压左侧的模拟赛入口。
-		container.NewPadded(container.NewHBox(p.judgeBtn, p.stopBtn, p.exportBtn)),
+		container.NewPadded(container.NewHBox(p.judgeBtn, p.stopBtn, p.exportBtn, p.exportCsvBtn)),
 		container.NewPadded(p.status),
 		container.NewPadded(p.bar),
 	)
@@ -120,10 +123,10 @@ func newContestPage(g *guiApp, c contest) *contestPage {
 		// 榜单用双向 Scroll：嵌套的 HScroll(VScroll(...)) 在 Fyne 里会互相
 		// 算错 MinSize（内层把高度撑满，外层再无余量），结果纵向根本滚不动。
 		// NewScroll 一个控件同时处理横向与纵向，事件也不会被内层吃掉。
-		container.NewTabItemWithIcon("榜单", theme.ListIcon(), p.boardScroll),
-		container.NewTabItemWithIcon("题目配置", theme.SettingsIcon(), configTab),
-		container.NewTabItemWithIcon("选手与提交", theme.AccountIcon(), newContestRoster(p).content),
-		container.NewTabItemWithIcon("评测日志", theme.InfoIcon(), container.NewVScroll(container.NewPadded(p.detail))),
+		container.NewTabItemWithIcon(tr("榜单"), theme.ListIcon(), p.boardScroll),
+		container.NewTabItemWithIcon(tr("题目配置"), theme.SettingsIcon(), configTab),
+		container.NewTabItemWithIcon(tr("选手与提交"), theme.AccountIcon(), newContestRoster(p).content),
+		container.NewTabItemWithIcon(tr("评测日志"), theme.InfoIcon(), container.NewVScroll(container.NewPadded(p.detail))),
 	)
 	tabs.SetTabLocation(container.TabLocationTop)
 
@@ -410,6 +413,7 @@ func (p *contestPage) buildBoard() fyne.CanvasObject {
 		// 概览文字允许换行，否则选手多时这一行自己就把内容顶得很宽。
 		wrappedCenter(fmt.Sprintf("共 %d 位选手 · %d 道题 · 满分 %s 分 · 评测于 %s",
 			len(rows), len(p.res.Problems), fmtScore(full), p.res.JudgedAt)),
+		passRateBars(passRates(c, p.res)),
 		// 表格不设宽高约束，统一交给外层 ScrollBoth 滚动。
 		p.rankingTable(rows, full),
 	}
@@ -427,7 +431,28 @@ func (p *contestPage) buildBoard() fyne.CanvasObject {
 		}
 	}
 	p.exportBtn.Enable()
+	p.exportCsvBtn.Enable()
 	return container.NewVBox(items...)
+}
+
+// passRateBars 生成每道题的满分率进度条行（题名 + 条 + 百分比）。
+func passRateBars(rates []passRate) fyne.CanvasObject {
+	if len(rates) == 0 {
+		return nil
+	}
+	box := container.NewVBox(section("通过率"))
+	for _, pr := range rates {
+		bar := widget.NewProgressBar()
+		bar.SetValue(pr.Rate())
+		bar.TextFormatter = func() string {
+			return fmt.Sprintf("%d/%d（%.0f%%）", pr.Solved, pr.Players, pr.Rate()*100)
+		}
+		box.Add(container.NewBorder(nil, nil,
+			container.NewGridWrap(fyne.NewSize(90, 30), widget.NewLabel(pr.Problem)),
+			nil, bar,
+		))
+	}
+	return container.NewPadded(box)
 }
 
 // wrappedCenter 生成一段居中的可换行说明文字。
@@ -585,6 +610,29 @@ func (p *contestPage) exportHTML() {
 		}, p.g.win)
 		openTip.SetConfirmText("打开所在目录")
 		openTip.Show()
+	}, p.g.win)
+	save.SetFileName(def)
+	save.Show()
+}
+
+// exportCSV 弹保存框导出榜单 CSV。
+func (p *contestPage) exportCSV() {
+	if !p.hasResult {
+		p.g.showError(fmt.Errorf("还没有评测结果"))
+		return
+	}
+	def := sanitizeFileName(p.c.Cfg.Name) + "-排名.csv"
+	save := dialog.NewFileSave(func(w fyne.URIWriteCloser, err error) {
+		if err != nil || w == nil {
+			return
+		}
+		_, werr := w.Write(rankingCSV(p.c, p.res))
+		_ = w.Close()
+		if werr != nil {
+			p.g.showError(fmt.Errorf("导出失败：%v", werr))
+			return
+		}
+		p.g.setStatus("榜单 CSV 已导出：" + w.URI().Path())
 	}, p.g.win)
 	save.SetFileName(def)
 	save.Show()

@@ -101,23 +101,23 @@ func newOverviewPage(pg *projectPage) *overviewPage {
 	o.note = caption("配置修改后自动保存，无需手动操作。")
 	o.note.Alignment = fyne.TextAlignLeading
 
-	refreshBtn := widget.NewButtonWithIcon("同步样例", theme.ViewRefreshIcon(), o.refreshSamples)
-	openBtn := widget.NewButtonWithIcon("打开目录", theme.FolderOpenIcon(), func() {
+	refreshBtn := widget.NewButtonWithIcon(tr("同步样例"), theme.ViewRefreshIcon(), o.refreshSamples)
+	openBtn := widget.NewButtonWithIcon(tr("打开目录"), theme.FolderOpenIcon(), func() {
 		if err := openPath(pg.p.Dir); err != nil {
 			pg.g.showError(err)
 		}
 	})
-	editBtn := widget.NewButtonWithIcon("外部编辑器", theme.DocumentCreateIcon(), func() {
+	editBtn := widget.NewButtonWithIcon(tr("外部编辑器"), theme.DocumentCreateIcon(), func() {
 		if err := launchEditor(pg.p); err != nil {
 			pg.g.showError(err)
 		}
 	})
-	termBtn := widget.NewButtonWithIcon("在终端打开", theme.ComputerIcon(), func() {
+	termBtn := widget.NewButtonWithIcon(tr("在终端打开"), theme.ComputerIcon(), func() {
 		if err := openTerminal(pg.p.Dir, ""); err != nil {
 			pg.g.showError(err)
 		}
 	})
-	removeBtn := deleteButton("移除项目…", func() {
+	removeBtn := deleteButton(tr("移除项目…"), func() {
 		pg.g.removeProjectDialog(pg.p)
 	})
 
@@ -154,7 +154,7 @@ func newOverviewPage(pg *projectPage) *overviewPage {
 		section("远端"),
 		o.remote,
 		container.NewHBox(
-			widget.NewButton("配置远端", func() { pg.g.remoteConfigDialog(pg.p) }),
+			widget.NewButton(tr("配置远端"), func() { pg.g.remoteConfigDialog(pg.p) }),
 			caption("从网站添加的题目会自动填好这两项"),
 		),
 		widget.NewSeparator(),

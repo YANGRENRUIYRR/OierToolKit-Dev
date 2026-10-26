@@ -18,7 +18,9 @@
 package main
 
 import (
+	"fmt"
 	"sort"
+	"strings"
 )
 
 // 排名计算：总分降序，同分按"最后得分时间"升序（越早越好），再按姓名。
@@ -116,6 +118,65 @@ func totalFullScore(c contest) float64 {
 		sum += fullScoreOf(c, p.Name)
 	}
 	return sum
+}
+
+// rankingCSV 把榜单导出为 CSV 文本（UTF-8，含 BOM 便于 Excel 识别中文）。
+func rankingCSV(c contest, res contestResult) []byte {
+	rows := buildRanking(c, res)
+	var b strings.Builder
+	b.WriteString("\xEF\xBB\xBF")
+	b.WriteString("名次,选手")
+	for _, prob := range res.Problems {
+		b.WriteString("," + prob)
+	}
+	b.WriteString(",总分,满分题数\n")
+	for _, row := range rows {
+		fmt.Fprintf(&b, "%d,%s", row.Rank, row.Player)
+		for _, s := range row.Scores {
+			fmt.Fprintf(&b, ",%s", fmtScore(s))
+		}
+		fmt.Fprintf(&b, ",%s,%d\n", fmtScore(row.Total), row.Solved)
+	}
+	return []byte(b.String())
+}
+
+// passRate 是一道题的通过情况。
+type passRate struct {
+	Problem string
+	Solved  int // 满分人数
+	Tried   int // 至少提交过一次的人数
+	Players int // 总人数
+}
+
+// Rate 满分率（0~1）。
+func (pr passRate) Rate() float64 {
+	if pr.Players == 0 {
+		return 0
+	}
+	return float64(pr.Solved) / float64(pr.Players)
+}
+
+// passRates 统计每道题的满分通过率，与 res.Problems 同序。
+func passRates(c contest, res contestResult) []passRate {
+	players := map[string]bool{}
+	for _, r := range res.Results {
+		players[r.Player] = true
+	}
+	out := make([]passRate, 0, len(res.Problems))
+	for _, prob := range res.Problems {
+		pr := passRate{Problem: prob, Players: len(players)}
+		for _, r := range res.Results {
+			if r.Problem != prob {
+				continue
+			}
+			pr.Tried++
+			if full := fullScoreOf(c, prob); full > 0 && r.Score >= full-1e-9 {
+				pr.Solved++
+			}
+		}
+		out = append(out, pr)
+	}
+	return out
 }
 
 // problemOf 按名字取题目配置。

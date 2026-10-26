@@ -67,8 +67,8 @@ func newSamplesPage(pg *projectPage) *samplesPage {
 
 	addBtn := widget.NewButtonWithIcon("", theme.ContentAddIcon(), s.addDialog)
 	delBtn := widget.NewButtonWithIcon("", theme.DeleteIcon(), s.deleteSelected)
-	importBtn := widget.NewButtonWithIcon("从剪贴板导入", theme.ContentPasteIcon(), s.importDialog)
-	syncBtn := widget.NewButtonWithIcon("同步", theme.ViewRefreshIcon(), func() {
+	importBtn := widget.NewButtonWithIcon(tr("从剪贴板导入"), theme.ContentPasteIcon(), s.importDialog)
+	syncBtn := widget.NewButtonWithIcon(tr("同步"), theme.ViewRefreshIcon(), func() {
 		res := syncSamples(s.pg.p, true)
 		s.reload()
 		msg := "样例库已是最新"
@@ -91,7 +91,7 @@ func newSamplesPage(pg *projectPage) *samplesPage {
 	s.outBox.SetPlaceHolder("期望输出（.out / .ans）")
 	s.outBox.OnChanged = func(string) { s.note.SetText("有未保存的修改") }
 
-	saveBtn := widget.NewButtonWithIcon("保存样例", theme.DocumentSaveIcon(), s.save)
+	saveBtn := widget.NewButtonWithIcon(tr("保存样例"), theme.DocumentSaveIcon(), s.save)
 	inPane := container.NewBorder(caption("输入 .in"), nil, nil, nil, s.inBox)
 	outPane := container.NewBorder(caption("期望输出"), nil, nil, nil, s.outBox)
 
