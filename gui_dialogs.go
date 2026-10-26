@@ -23,6 +23,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -272,6 +273,21 @@ func (g *guiApp) settingsDialog() {
 	langSel.SetSelected(languageChoiceFromValue(guiPref(prefLang, "auto")))
 	langNote := caption(tr("语言改动在重启应用后生效。"))
 
+	// 评测并发度：首项是「自动」，其余是固定值。用序号而不是文案做判断，
+	// 避免切换语言后选项文本变化导致解析错乱。
+	parallelChoices := []string{tr("自动（推荐）"), "1", "2", "4", "8", "12", "16", "24", "32"}
+	parSel := widget.NewSelect(parallelChoices, nil)
+	if cur := guiPrefInt(prefJudgeParallel, 0); cur > 0 {
+		parSel.SetSelected(strconv.Itoa(cur))
+	} else {
+		parSel.SetSelectedIndex(0)
+	}
+	if parSel.Selected == "" {
+		// 配置里写了个选项之外的值（比如手改过 ini）：保持原值，
+		// 只在用户主动改选项时才覆盖。
+		parSel.PlaceHolder = strconv.Itoa(guiPrefInt(prefJudgeParallel, 0))
+	}
+
 	content := container.NewVBox(
 		section(tr("外观")),
 		widget.NewForm(
@@ -281,6 +297,13 @@ func (g *guiApp) settingsDialog() {
 		langNote,
 		caption(tr("全屏会保留系统标题栏和右上角的最小化、最大化、关闭按钮；")+
 			tr("也可以用 F11 随时切换，Esc 退出全屏。")),
+		widget.NewSeparator(),
+		section(tr("评测")),
+		widget.NewForm(
+			widget.NewFormItem(tr("并发度"), parSel),
+		),
+		caption(tr("同时运行的评测任务数。自动 = CPU 核数减一（最多 8）；")+
+			tr("机器卡顿时可以调小，大比赛想跑满可以调大。")),
 		widget.NewSeparator(),
 		section(tr("桌面快捷方式")),
 		container.NewVBox(
@@ -327,6 +350,19 @@ func (g *guiApp) settingsDialog() {
 			}
 			if langSel.Selected != "" {
 				if err := setGuiPref(prefLang, languageValueFromChoice(langSel.Selected)); err != nil {
+					g.showError(err)
+					return
+				}
+			}
+			// 并发度：选「自动」写 0，其余直接写下拉显示的数字；
+			// Selected 为空说明用户没动过那个 ini 里的非常规值，保持原样。
+			if parSel.SelectedIndex() == 0 {
+				if err := setGuiPref(prefJudgeParallel, "0"); err != nil {
+					g.showError(err)
+					return
+				}
+			} else if parSel.Selected != "" {
+				if err := setGuiPref(prefJudgeParallel, parSel.Selected); err != nil {
 					g.showError(err)
 					return
 				}

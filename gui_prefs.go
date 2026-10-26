@@ -33,6 +33,7 @@ import (
 const (
 	prefFullscreen    = "gui_fullscreen"     // 启动时全屏
 	prefShortcutAsked = "gui_shortcut_asked" // 是否已经问过"要不要创建桌面快捷方式"
+	prefJudgeParallel = "gui_judge_parallel" // 评测并发度：0=自动（CPU核数-1，上限8）
 
 	// 窗口状态记忆：关闭时的最大化状态与窗口化时的尺寸/位置。
 	prefWinMax = "gui_win_max"

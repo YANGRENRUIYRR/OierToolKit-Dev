@@ -51,6 +51,13 @@ type stressPage struct {
 
 	lastRes *stressResult
 
+	// failBar 是跑完后铺开的反例轮次按钮条：多反例时不用开管理器就能
+	// 逐个查看，「存为样例」跟着当前选中的轮次走。
+	failBox    *fyne.Container
+	failScroll *container.Scroll
+	failBtns   map[string]*widget.Button
+	curRound   string
+
 	running atomic.Bool
 	cancel  atomic.Bool
 }
@@ -118,7 +125,15 @@ func newStressPage(pg *projectPage) *stressPage {
 	bottom := container.NewPadded(container.NewBorder(nil, nil, nil,
 		container.NewHBox(s.saveBtn, s.manageBtn, s.dataBtn),
 		caption(tr("反例数据保存为 <轮次>.in / .ans / .out，可一键存为样例后在评测页复测"))))
-	s.content = container.NewBorder(head, bottom, nil, nil, container.NewVScroll(s.detail))
+
+	s.failBtns = map[string]*widget.Button{}
+	s.failBox = container.NewHBox()
+	s.failScroll = container.NewHScroll(s.failBox)
+	s.failScroll.Hide()
+
+	// 结果区上方留给反例轮次条，隐藏时不占空间。
+	middle := container.NewBorder(s.failScroll, nil, nil, nil, container.NewVScroll(s.detail))
+	s.content = container.NewBorder(head, bottom, nil, nil, middle)
 	s.reload()
 	return s
 }
@@ -139,6 +154,11 @@ func (s *stressPage) run() {
 	s.detail.SetText("")
 	s.dataBtn.Disable()
 	s.saveBtn.Disable()
+	// 清掉上一轮的反例按钮条，避免旧轮次混进新结果。
+	s.curRound = ""
+	s.failBox.Objects = nil
+	s.failBtns = map[string]*widget.Button{}
+	s.failScroll.Hide()
 	s.bar.SetValue(0)
 	s.bar.Show()
 	s.startBtn.Disable()
@@ -196,6 +216,8 @@ func (s *stressPage) run() {
 					clip(res.Input), res.Expected, res.Actual))
 				s.dataBtn.Enable()
 				s.saveBtn.Enable()
+				// 铺反例轮次条：多反例时直接在主页切换查看。
+				s.fillFailRounds(res)
 
 			default:
 				s.bar.SetValue(1)
@@ -210,18 +232,87 @@ func (s *stressPage) run() {
 	}()
 }
 
-// saveCounterexample 把首个反例写入样例库，方便在评测页直接复测。
+// saveCounterexample 把当前查看的反例轮次写入样例库，方便在评测页直接复测。
+// 默认是首个反例；在轮次条上点过其他轮后，存的就是那一轮。
 func (s *stressPage) saveCounterexample() {
 	if s.lastRes == nil || s.lastRes.FailRound == 0 {
 		return
 	}
-	res := s.lastRes
+	round := s.curRound
+	if round == "" {
+		round = strconv.Itoa(s.lastRes.FailRound)
+	}
+
+	var input, expected string
+	inB, errIn := os.ReadFile(filepath.Join(s.pg.p.Dir, ".stress", round+".in"))
+	ansB, errAns := os.ReadFile(filepath.Join(s.pg.p.Dir, ".stress", round+".ans"))
+	switch {
+	case errIn == nil && errAns == nil:
+		input, expected = string(inB), string(ansB)
+	case round == strconv.Itoa(s.lastRes.FailRound):
+		// 文件不在但内存里还有（比如首轮反例），退回内存数据。
+		input, expected = s.lastRes.Input, s.lastRes.Expected
+	default:
+		s.pg.g.showError(fmt.Errorf("%s", tr("反例文件不存在，可能已被删除")))
+		return
+	}
+
 	id := nextSampleID(readIndex(s.pg.p))
-	if err := writeSample(s.pg.p, id, res.Input, res.Expected); err != nil {
+	if err := writeSample(s.pg.p, id, input, expected); err != nil {
 		s.pg.g.showError(err)
 		return
 	}
-	s.pg.g.setStatus(fmt.Sprintf(tr("已把第 %d 轮反例存为样例 #%s（含期望输出）"), res.FailRound, id))
+	s.pg.g.setStatus(fmt.Sprintf(tr("已把第 %s 轮反例存为样例 #%s（含期望输出）"), round, id))
+}
+
+// fillFailRounds 跑完后把 .stress 里所有反例轮次铺成按钮条，
+// 当前查看的轮次高亮，点击即在结果区切换。
+func (s *stressPage) fillFailRounds(res stressResult) {
+	rounds := stressRounds(res.StressDir)
+	if len(rounds) == 0 {
+		return
+	}
+	s.curRound = strconv.Itoa(res.FailRound)
+	for _, r := range rounds {
+		round := r
+		btn := widget.NewButton(fmt.Sprintf(tr("第 %s 轮"), round), func() {
+			s.curRound = round
+			s.showRound(round)
+			s.refreshFailButtons()
+		})
+		s.failBtns[round] = btn
+		s.failBox.Add(btn)
+	}
+	s.refreshFailButtons()
+	s.failScroll.Show()
+}
+
+// refreshFailButtons 按 curRound 刷新轮次条的高亮。
+func (s *stressPage) refreshFailButtons() {
+	for round, btn := range s.failBtns {
+		if round == s.curRound {
+			btn.Importance = widget.HighImportance
+		} else {
+			btn.Importance = widget.MediumImportance
+		}
+		btn.Refresh()
+	}
+}
+
+// showRound 把某一轮反例的输入/期望/实际输出显示到结果区。
+func (s *stressPage) showRound(round string) {
+	dir := filepath.Join(s.pg.p.Dir, ".stress")
+	var b strings.Builder
+	if data, err := os.ReadFile(filepath.Join(dir, round+".in")); err == nil {
+		fmt.Fprintf(&b, tr("输入数据：\n%s\n"), clip(string(data)))
+	}
+	if data, err := os.ReadFile(filepath.Join(dir, round+".ans")); err == nil {
+		fmt.Fprintf(&b, tr("期望输出：\n%s\n"), string(data))
+	}
+	if data, err := os.ReadFile(filepath.Join(dir, round+".out")); err == nil {
+		fmt.Fprintf(&b, tr("实际输出：\n%s\n"), string(data))
+	}
+	s.detail.SetText(b.String())
 }
 
 // stressRounds 列出 .stress 目录里已有的反例轮次（升序）。

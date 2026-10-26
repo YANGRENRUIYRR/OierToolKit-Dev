@@ -117,8 +117,15 @@ func (r contestResult) totalOf(player string) float64 {
 	return sum
 }
 
-// contestParallelism 决定并发度：留一个核心给系统，上限 8，最少 1。
+// contestParallelism 决定并发度。默认「自动」：留一个核心给系统，上限 8，
+// 最少 1。设置里可改成固定值（1~32），GUI 与 CLI 读同一份全局配置。
 func contestParallelism() int {
+	if n := guiPrefInt(prefJudgeParallel, 0); n > 0 {
+		if n > 32 {
+			n = 32
+		}
+		return n
+	}
 	n := runtime.NumCPU() - 1
 	if n > 8 {
 		n = 8
