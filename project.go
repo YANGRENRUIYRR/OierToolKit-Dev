@@ -87,7 +87,7 @@ func requireProject() project {
 	p, ok := findProject()
 	if !ok {
 		cwd, _ := os.Getwd()
-		fatal("当前目录不属于任何项目: %s\n用 'otk init' 在此创建项目。", cwd)
+		fatal(tr("当前目录不属于任何项目: %s\n用 'otk init' 在此创建项目。"), cwd)
 	}
 	return p
 }
@@ -111,11 +111,11 @@ func (p project) configPath() string {
 // cmdInit 在当前目录初始化项目，并登记到项目库。
 func cmdInit(args []string) {
 	if len(args) > 1 {
-		fatal("用法: otk init [名称]")
+		fatal(tr("用法: otk init [名称]"))
 	}
 	cwd, err := os.Getwd()
 	if err != nil {
-		fatal("无法获取当前目录: %v", err)
+		fatal(tr("无法获取当前目录: %v"), err)
 	}
 	name := filepath.Base(cwd)
 	if len(args) == 1 {
@@ -128,16 +128,16 @@ func cmdInit(args []string) {
 	}
 
 	if created {
-		fmt.Printf("已初始化项目 %s%s%s (%s)\n", cyan, p.Name, reset, p.Dir)
+		fmt.Printf(tr("已初始化项目 %s%s%s (%s)\n"), cyan, p.Name, reset, p.Dir)
 	} else {
-		fmt.Printf("项目 %s%s%s 已初始化\n", cyan, p.Name, reset)
+		fmt.Printf(tr("项目 %s%s%s 已初始化\n"), cyan, p.Name, reset)
 	}
 	if len(res.added) > 0 {
 		ids := make([]string, 0, len(res.added))
 		for _, id := range res.added {
 			ids = append(ids, "#"+id)
 		}
-		fmt.Printf("已登记样例: %s\n", strings.Join(ids, " "))
+		fmt.Printf(tr("已登记样例: %s\n"), strings.Join(ids, " "))
 	}
 	printPairWarnings(p, res)
 }
@@ -146,7 +146,7 @@ func cmdInit(args []string) {
 // 库并同步样例）。created 表示配置是否为本次新建。不打印、不退出。
 func initProjectAt(dir, name string) (project, refreshResult, bool, error) {
 	if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
-		return project{}, refreshResult{}, false, fmt.Errorf("非法的项目名称: %s", name)
+		return project{}, refreshResult{}, false, fmt.Errorf(tr("非法的项目名称: %s"), name)
 	}
 
 	created := false
@@ -183,7 +183,7 @@ func initProjectAt(dir, name string) (project, refreshResult, bool, error) {
 	if !fileExists(src) {
 		tmpl := "#include<iostream>\nusing namespace std;\n\nint main(){\n    \n    return 0;\n}\n"
 		if err := os.WriteFile(src, []byte(tmpl), 0644); err != nil {
-			return project{}, refreshResult{}, created, fmt.Errorf("无法创建源码文件: %v", err)
+			return project{}, refreshResult{}, created, fmt.Errorf(tr("无法创建源码文件: %v"), err)
 		}
 	}
 
@@ -207,7 +207,7 @@ func cmdStatus() {
 		o2 = "O2"
 	}
 	fmt.Printf("%s%s%s  %s\n", cyan, p.Name, reset, p.Dir)
-	fmt.Printf("  %s.cpp · %ss / %sMB · %s %s · 样例 %d\n",
+	fmt.Printf(tr("  %s.cpp · %ss / %sMB · %s %s · 样例 %d\n"),
 		p.codeName(),
 		propsOr(props, "time_limit", "1.00"),
 		propsOr(props, "memory_limit", "125"),

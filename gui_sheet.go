@@ -93,11 +93,11 @@ func (g *guiApp) showSheet(opt sheetOptions) {
 	}
 	confirmText := opt.Confirm
 	if confirmText == "" {
-		confirmText = "保存"
+		confirmText = tr("保存")
 	}
 	dismissText := opt.Dismiss
 	if dismissText == "" {
-		dismissText = "取消"
+		dismissText = tr("取消")
 	}
 
 	title := widget.NewLabelWithStyle(opt.Title, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
@@ -130,7 +130,7 @@ func (g *guiApp) showSheet(opt sheetOptions) {
 	foot := container.NewVBox(
 		widget.NewSeparator(),
 		container.NewPadded(container.NewBorder(nil, nil,
-			caption("Esc 取消"),
+			caption(tr("Esc 取消")),
 			container.NewHBox(dismissBtn, confirmBtn),
 		)),
 	)

@@ -148,7 +148,7 @@ func judgeContest(c contest, emit func(judgeEvent), stopped func() bool) (contes
 
 	sources := c.Cfg.Sources
 	if len(sources) == 0 {
-		return res, fmt.Errorf("这场比赛没有任何选手提交")
+		return res, fmt.Errorf("%s", tr("这场比赛没有任何选手提交"))
 	}
 	problems := map[string]contestProblem{}
 	for _, p := range c.Cfg.Problems {
@@ -157,7 +157,7 @@ func judgeContest(c contest, emit func(judgeEvent), stopped func() bool) (contes
 
 	buildDir := filepath.Join(c.Dir, ".build")
 	if err := os.MkdirAll(buildDir, 0755); err != nil {
-		return res, fmt.Errorf("无法创建构建目录: %v", err)
+		return res, fmt.Errorf(tr("无法创建构建目录: %v"), err)
 	}
 	// 停止时直接把整个构建目录删掉：Windows 上正在运行的 exe 删不掉，
 	// 但编译产物通常已经写完，删不掉也无妨，下次评测会覆盖。
@@ -176,7 +176,7 @@ func judgeContest(c contest, emit func(judgeEvent), stopped func() bool) (contes
 			checkers[p.Name] = exe
 		} else if emit != nil {
 			emit(judgeEvent{Kind: judgeCompile, Problem: p.Name,
-				Message: fmt.Sprintf("%s：checker 编译失败，本题退回普通比对\n%s", p.Name, log)})
+				Message: fmt.Sprintf(tr("%s：checker 编译失败，本题退回普通比对\n%s"), p.Name, log)})
 		}
 	}
 
@@ -226,7 +226,7 @@ func judgeContest(c contest, emit func(judgeEvent), stopped func() bool) (contes
 					Kind:    judgeDone,
 					Player:  src.Player,
 					Problem: src.Problem,
-					Message: fmt.Sprintf("%s / %s：%.0f 分", src.Player, src.Problem, out.Score),
+					Message: fmt.Sprintf(tr("%s / %s：%.0f 分"), src.Player, src.Problem, out.Score),
 					Percent: float64(n) / float64(total),
 				})
 			}
@@ -252,7 +252,7 @@ func judgeSubmission(c contest, prob contestProblem, src contestSource, buildDir
 
 	srcPath := filepath.Join(c.Dir, filepath.FromSlash(src.Path))
 	if !fileExists(srcPath) {
-		out.CompileLog = "源码缺失: " + src.Path
+		out.CompileLog = tr("源码缺失: ") + src.Path
 		return out, false
 	}
 

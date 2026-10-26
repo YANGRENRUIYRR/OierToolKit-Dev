@@ -122,7 +122,7 @@ func createDesktopShortcut() (string, error) {
 		return "", err
 	}
 	if err := os.MkdirAll(desktop, 0755); err != nil {
-		return "", fmt.Errorf("无法访问桌面目录：%v", err)
+		return "", fmt.Errorf(tr("无法访问桌面目录：%v"), err)
 	}
 	return writeShortcut(desktop, shortcutTarget())
 }
@@ -141,7 +141,7 @@ func shortcutExists() bool {
 func desktopDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("无法定位用户主目录：%v", err)
+		return "", fmt.Errorf(tr("无法定位用户主目录：%v"), err)
 	}
 	if dir := os.Getenv("XDG_DESKTOP_DIR"); dir != "" && runtime.GOOS == "linux" {
 		return dir, nil

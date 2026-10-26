@@ -34,7 +34,7 @@ func cmdConfig(args []string) {
 	case len(args) >= 2 && strings.ToLower(args[0]) == "remote":
 		cmdRemoteConfig(args[1:])
 	default:
-		fatal("用法: otk config [<项> <值>]")
+		fatal(tr("用法: otk config [<项> <值>]"))
 	}
 }
 
@@ -49,7 +49,7 @@ func cmdRemoteConfig(args []string) {
 	case len(args) == 0 || args[0] == "ls" || args[0] == "list":
 		remotes := listRemotes()
 		if len(remotes) == 0 {
-			fmt.Println("（还没有配置远端，otk config remote add <名> <地址> 添加）")
+			fmt.Println(tr("（还没有配置远端，otk config remote add <名> <地址> 添加）"))
 			return
 		}
 		width := 0
@@ -59,9 +59,9 @@ func cmdRemoteConfig(args []string) {
 			}
 		}
 		for _, r := range remotes {
-			token := "无令牌"
+			token := tr("无令牌")
 			if r.Token != "" {
-				token = "有令牌"
+				token = tr("有令牌")
 			}
 			fmt.Printf("%-*s  %s  %s\n", width, r.Name, r.Base, token)
 		}
@@ -69,20 +69,20 @@ func cmdRemoteConfig(args []string) {
 		if err := saveRemote(args[1], args[2], ""); err != nil {
 			fatal("%v", err)
 		}
-		fmt.Printf("远端 %s = %s\n", args[1], strings.TrimRight(args[2], "/"))
+		fmt.Printf(tr("远端 %s = %s")+"\n", args[1], strings.TrimRight(args[2], "/"))
 	case len(args) == 3 && args[0] == "token":
 		name := strings.TrimSpace(args[1])
 		if err := saveRemoteToken(name, args[2]); err != nil {
 			fatal("%v", err)
 		}
-		fmt.Printf("远端 %s 令牌已更新\n", name)
+		fmt.Printf(tr("远端 %s 令牌已更新")+"\n", name)
 	case len(args) == 2 && (args[0] == "rm" || args[0] == "remove"):
 		if err := removeRemote(args[1]); err != nil {
 			fatal("%v", err)
 		}
-		fmt.Printf("已删除远端 %s\n", args[1])
+		fmt.Printf(tr("已删除远端 %s")+"\n", args[1])
 	default:
-		fatal("用法: otk config remote ls | add <名> <地址> | token <名> <令牌> | rm <名>")
+		fatal(tr("用法: otk config remote ls | add <名> <地址> | token <名> <令牌> | rm <名>"))
 	}
 }
 
@@ -92,11 +92,11 @@ func saveRemoteToken(name, token string) error {
 	key := "token." + name
 	if name == legacyRemoteName {
 		if props["remote"] == "" {
-			return fmt.Errorf("没有名为 '%s' 的远端", name)
+			return fmt.Errorf(tr("没有名为 '%s' 的远端"), name)
 		}
 		key = "remote_token"
 	} else if _, ok := props["remote."+name]; !ok {
-		return fmt.Errorf("没有名为 '%s' 的远端", name)
+		return fmt.Errorf(tr("没有名为 '%s' 的远端"), name)
 	}
 	props[key] = strings.TrimSpace(token)
 	writeIni(globalConfigPath(), props)
@@ -131,8 +131,8 @@ func showConfig() {
 		o2)
 	if propsOr(props, "io_mode", "") == "file" {
 		fmt.Printf("io=file in=%s out=%s\n",
-			propsOr(props, "io_in", "（<源码名>.in）"),
-			propsOr(props, "io_out", "（<源码名>.out）"))
+			propsOr(props, "io_in", tr("（<源码名>.in）")),
+			propsOr(props, "io_out", tr("（<源码名>.out）")))
 	}
 	if c := props["cflags"]; c != "" {
 		fmt.Printf("cflags=%s\n", c)
@@ -188,7 +188,7 @@ func setGlobalConfig(item, value string) (string, error) {
 	case "remote_token":
 		props["remote_token"] = value
 	default:
-		return "", fmt.Errorf("未知配置项 '%s'", item)
+		return "", fmt.Errorf(tr("未知配置项 '%s'"), item)
 	}
 	writeIni(globalConfigPath(), props)
 
@@ -210,14 +210,14 @@ func setProjectConfig(p project, item, value string) (string, error) {
 	switch strings.ToLower(item) {
 	case "time":
 		if _, err := strconv.ParseFloat(value, 64); err != nil {
-			return "", fmt.Errorf("time 必须是数字 (如 1.00)")
+			return "", fmt.Errorf("%s", tr("time 必须是数字 (如 1.00)"))
 		}
 		props["time_limit"] = value
 		msg = fmt.Sprintf("time=%ss", value)
 
 	case "memory", "mem":
 		if _, err := strconv.ParseFloat(value, 64); err != nil {
-			return "", fmt.Errorf("memory 必须是数字 (如 125)")
+			return "", fmt.Errorf("%s", tr("memory 必须是数字 (如 125)"))
 		}
 		props["memory_limit"] = value
 		msg = fmt.Sprintf("memory=%sMB", value)
@@ -233,9 +233,9 @@ func setProjectConfig(p project, item, value string) (string, error) {
 			msg = "compiler=g++"
 		case "gcc", "c":
 			props["compiler"] = "gcc"
-			msg = "compiler=gcc（源码按 C 编译）"
+			msg = tr("compiler=gcc（源码按 C 编译）")
 		default:
-			return "", fmt.Errorf("compiler 只支持 g++ 或 gcc")
+			return "", fmt.Errorf("%s", tr("compiler 只支持 g++ 或 gcc"))
 		}
 
 	case "o2":
@@ -247,20 +247,20 @@ func setProjectConfig(p project, item, value string) (string, error) {
 			props["o2"] = "0"
 			msg = "o2=off"
 		default:
-			return "", fmt.Errorf("o2 必须是 on/off")
+			return "", fmt.Errorf("%s", tr("o2 必须是 on/off"))
 		}
 
 	case "threads", "thread":
 		n, err := strconv.Atoi(value)
 		if err != nil || n < 0 {
-			return "", fmt.Errorf("threads 必须是非负整数（0 = 按 CPU 核心数自动，上限 8）")
+			return "", fmt.Errorf("%s", tr("threads 必须是非负整数（0 = 按 CPU 核心数自动，上限 8）"))
 		}
 		props["threads"] = strconv.Itoa(n)
 		switch {
 		case n == 0:
-			msg = "threads=0（自动并发）"
+			msg = tr("threads=0（自动并发）")
 		case n == 1:
-			msg = "threads=1（串行）"
+			msg = tr("threads=1（串行）")
 		default:
 			msg = fmt.Sprintf("threads=%d", n)
 		}
@@ -269,18 +269,18 @@ func setProjectConfig(p project, item, value string) (string, error) {
 		switch strings.ToLower(strings.TrimSpace(value)) {
 		case "file":
 			props["io_mode"] = "file"
-			msg = "io=file（文件读写，freopen）"
+			msg = tr("io=file（文件读写，freopen）")
 		case "std", "stdio", "stdin", "stdout", "":
 			props["io_mode"] = ""
-			msg = "io=stdio（标准输入输出）"
+			msg = tr("io=stdio（标准输入输出）")
 		default:
-			return "", fmt.Errorf("io 必须是 std/file")
+			return "", fmt.Errorf("%s", tr("io 必须是 std/file"))
 		}
 
 	case "io_in":
 		props["io_in"] = strings.TrimSpace(value)
 		if props["io_in"] == "" {
-			msg = "io_in=（缺省用 <源码名>.in）"
+			msg = tr("io_in=（缺省用 <源码名>.in）")
 		} else {
 			msg = "io_in=" + props["io_in"]
 		}
@@ -288,7 +288,7 @@ func setProjectConfig(p project, item, value string) (string, error) {
 	case "io_out":
 		props["io_out"] = strings.TrimSpace(value)
 		if props["io_out"] == "" {
-			msg = "io_out=（缺省用 <源码名>.out）"
+			msg = tr("io_out=（缺省用 <源码名>.out）")
 		} else {
 			msg = "io_out=" + props["io_out"]
 		}
@@ -297,11 +297,11 @@ func setProjectConfig(p project, item, value string) (string, error) {
 		// 额外编译参数（如 -Wall）：引号语义与命令行一致。
 		value = strings.TrimSpace(value)
 		if value != "" && len(splitQuoted(value)) == 0 {
-			return "", fmt.Errorf("cflags 格式无效")
+			return "", fmt.Errorf("%s", tr("cflags 格式无效"))
 		}
 		props["cflags"] = value
 		if value == "" {
-			msg = "cflags=（无额外编译参数）"
+			msg = tr("cflags=（无额外编译参数）")
 		} else {
 			msg = "cflags=" + value
 		}
@@ -310,12 +310,12 @@ func setProjectConfig(p project, item, value string) (string, error) {
 		switch strings.ToLower(strings.TrimSpace(value)) {
 		case "on", "true", "1":
 			props["spj"] = "1"
-			msg = "spj=on（存在 checker.cpp 时启用特殊判题）"
+			msg = tr("spj=on（存在 checker.cpp 时启用特殊判题）")
 		case "off", "false", "0":
 			props["spj"] = "off"
 			msg = "spj=off"
 		default:
-			return "", fmt.Errorf("spj 必须是 on/off")
+			return "", fmt.Errorf("%s", tr("spj 必须是 on/off"))
 		}
 
 	case "remote_base":
@@ -327,7 +327,7 @@ func setProjectConfig(p project, item, value string) (string, error) {
 		msg = fmt.Sprintf("remote_id=%s", value)
 
 	default:
-		return "", fmt.Errorf("未知配置项 '%s'（项目: time/memory/version/compiler/o2/threads/io/io_in/io_out/cflags/spj/remote_base/remote_id；全局: editor/remote/remote_token；远端管理: otk config remote ls|add|token|rm）", item)
+		return "", fmt.Errorf(tr("未知配置项 '%s'（项目: time/memory/version/compiler/o2/threads/io/io_in/io_out/cflags/spj/remote_base/remote_id；全局: editor/remote/remote_token；远端管理: otk config remote ls|add|token|rm）"), item)
 	}
 
 	writeIni(p.configPath(), props)

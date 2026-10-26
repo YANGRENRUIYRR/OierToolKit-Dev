@@ -79,7 +79,7 @@ func newSourcePage(pg *projectPage) *sourcePage {
 
 func (s *sourcePage) onChanged(text string) {
 	if text != s.loaded {
-		s.note.SetText("有未保存的修改")
+		s.note.SetText(tr("有未保存的修改"))
 	} else {
 		s.note.SetText("")
 	}
@@ -94,7 +94,7 @@ func (s *sourcePage) reload() {
 	if err != nil {
 		s.loaded = ""
 		s.editor.SetText("")
-		s.note.SetText(fmt.Sprintf("读取失败：%v", err))
+		s.note.SetText(fmt.Sprintf(tr("读取失败：%v"), err))
 		return
 	}
 	s.loaded = string(data)
@@ -107,7 +107,7 @@ func (s *sourcePage) showStats() {
 	cs := codeStatsOf(s.editor.Text)
 	body := widget.NewLabel(statsSummary(cs))
 	body.TextStyle = fyne.TextStyle{Monospace: true}
-	d := dialog.NewCustom("代码统计", "关闭", container.NewVScroll(body), s.pg.g.win)
+	d := dialog.NewCustom(tr("代码统计"), tr("关闭"), container.NewVScroll(body), s.pg.g.win)
 	d.Resize(fyne.NewSize(480, 320))
 	d.Show()
 }
@@ -116,10 +116,10 @@ func (s *sourcePage) showStats() {
 func (s *sourcePage) save() {
 	path := s.pg.p.sourcePath()
 	if err := os.WriteFile(path, []byte(s.editor.Text), 0644); err != nil {
-		s.pg.g.showError(fmt.Errorf("保存失败: %v", err))
+		s.pg.g.showError(fmt.Errorf(tr("保存失败: %v"), err))
 		return
 	}
 	s.loaded = s.editor.Text
 	s.note.SetText("")
-	s.pg.g.setStatus("已保存 " + path)
+	s.pg.g.setStatus(fmt.Sprintf(tr("已保存 %s"), path))
 }

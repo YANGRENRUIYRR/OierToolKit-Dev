@@ -57,17 +57,17 @@ func newSubmitPage(pg *projectPage) *submitPage {
 	s := &submitPage{pg: pg}
 
 	s.info = hint("")
-	s.status = caption("提交前请确认远端地址与题号。")
+	s.status = caption(tr("提交前请确认远端地址与题号。"))
 	s.badge = newVerdictBadge()
 	s.badge.set("")
-	s.verdict = strong("尚未提交")
+	s.verdict = strong(tr("尚未提交"))
 	s.meta = caption("")
-	s.detail = hint("选择测试点查看详情。")
+	s.detail = hint(tr("选择测试点查看详情。"))
 
-	s.waitBtn = widget.NewButtonWithIcon("提交并等待结果", theme.UploadIcon(), func() { s.run(true) })
+	s.waitBtn = widget.NewButtonWithIcon(tr("提交并等待结果"), theme.UploadIcon(), func() { s.run(true) })
 	s.waitBtn.Importance = widget.HighImportance
-	s.quietBtn = widget.NewButtonWithIcon("仅提交", theme.MailSendIcon(), func() { s.run(false) })
-	s.stopBtn = widget.NewButtonWithIcon("停止等待", theme.MediaStopIcon(), s.stop)
+	s.quietBtn = widget.NewButtonWithIcon(tr("仅提交"), theme.MailSendIcon(), func() { s.run(false) })
+	s.stopBtn = widget.NewButtonWithIcon(tr("停止等待"), theme.MediaStopIcon(), s.stop)
 	s.stopBtn.Disable()
 
 	s.list = widget.NewList(
@@ -94,7 +94,7 @@ func newSubmitPage(pg *projectPage) *submitPage {
 		}
 		t := s.points[id]
 		if strings.TrimSpace(t.Detail) == "" {
-			s.detail.SetText(fmt.Sprintf("#%d %s\n\n用时 %dms，内存 %dKB。", t.Index,
+			s.detail.SetText(fmt.Sprintf(tr("#%d %s\n\n用时 %dms，内存 %dKB。"), t.Index,
 				strings.ToUpper(strings.TrimSpace(t.Verdict)), t.TimeMS, t.MemoryKB))
 			return
 		}
@@ -127,14 +127,14 @@ func (s *submitPage) reload() {
 	id := props["remote_id"]
 	switch {
 	case base == "" && id == "":
-		s.info.SetText("该项目未配置远端。可以点“配置远端”，或用“从网站添加题目”建立带远端信息的项目。")
+		s.info.SetText(tr("该项目未配置远端。可以点“配置远端”，或用“从网站添加题目”建立带远端信息的项目。"))
 	case base == "":
-		s.info.SetText("已配置题号 " + id + "，但缺少远端地址。")
+		s.info.SetText(fmt.Sprintf(tr("已配置题号 %s，但缺少远端地址。"), id))
 	default:
-		s.info.SetText(fmt.Sprintf("题目 %s @ %s", id, base))
+		s.info.SetText(fmt.Sprintf(tr("题目 %s @ %s"), id, base))
 	}
 	if s.pg.p.cfg()["remote_id"] != "" {
-		s.info.SetText(s.info.Text + "\n远端题号：" + s.pg.p.cfg()["remote_id"])
+		s.info.SetText(s.info.Text + "\n" + tr("远端题号：") + s.pg.p.cfg()["remote_id"])
 	}
 }
 
@@ -146,7 +146,7 @@ func (s *submitPage) run(wait bool) {
 	p := s.pg.p
 	props := p.cfg()
 	if strings.TrimRight(props["remote_base"], "/") == "" {
-		s.pg.g.showError(fmt.Errorf("请先配置远端地址与题号"))
+		s.pg.g.showError(fmt.Errorf("%s", tr("请先配置远端地址与题号")))
 		return
 	}
 
@@ -156,12 +156,12 @@ func (s *submitPage) run(wait bool) {
 	s.list.Refresh()
 	s.detail.SetText("")
 	s.badge.set("")
-	s.verdict.SetText("提交中 ...")
+	s.verdict.SetText(tr("提交中 ..."))
 	s.meta.SetText("")
 	s.waitBtn.Disable()
 	s.quietBtn.Disable()
 	s.stopBtn.Enable()
-	s.pg.g.busy(true, "正在提交 ...")
+	s.pg.g.busy(true, tr("正在提交 ..."))
 
 	go func() {
 		res, err := submitSolution(p, wait, func(v remoteVerdict) {
@@ -170,7 +170,7 @@ func (s *submitPage) run(wait bool) {
 				verdict = "PENDING"
 			}
 			ui(func() {
-				s.status.SetText("判题中：" + verdict)
+				s.status.SetText(tr("判题中：") + verdict)
 			})
 		}, func() bool { return s.cancel.Load() })
 
@@ -182,28 +182,28 @@ func (s *submitPage) run(wait bool) {
 
 			switch {
 			case err != nil:
-				s.verdict.SetText("提交失败")
+				s.verdict.SetText(tr("提交失败"))
 				s.status.SetText(err.Error())
-				s.pg.g.busy(false, "提交失败")
+				s.pg.g.busy(false, tr("提交失败"))
 				s.pg.g.showError(err)
 
 			case !wait:
-				s.verdict.SetText("已提交")
-				s.meta.SetText("提交号 " + res.ID)
-				s.status.SetText("已提交，未等待结果")
-				s.pg.g.busy(false, "已提交 "+res.ID)
+				s.verdict.SetText(tr("已提交"))
+				s.meta.SetText(tr("提交号 ") + res.ID)
+				s.status.SetText(tr("已提交，未等待结果"))
+				s.pg.g.busy(false, tr("已提交 ")+res.ID)
 
 			case res.Timeout:
-				s.verdict.SetText("等待超时")
-				s.meta.SetText("提交号 " + res.ID + " · 最后状态 " + res.Last)
-				s.status.SetText("可到 OJ 页面查看结果")
-				s.pg.g.busy(false, "等待超时")
-				s.pg.g.showError(fmt.Errorf("仍然没有出现终态（最后状态 %s），提交号 %s", res.Last, res.ID))
+				s.verdict.SetText(tr("等待超时"))
+				s.meta.SetText(tr("提交号 ") + res.ID + tr(" · 最后状态 ") + res.Last)
+				s.status.SetText(tr("可到 OJ 页面查看结果"))
+				s.pg.g.busy(false, tr("等待超时"))
+				s.pg.g.showError(fmt.Errorf(tr("仍然没有出现终态（最后状态 %s），提交号 %s"), res.Last, res.ID))
 
 			case s.cancel.Load():
-				s.verdict.SetText("已停止等待")
-				s.meta.SetText("提交号 " + res.ID)
-				s.pg.g.busy(false, "已停止等待")
+				s.verdict.SetText(tr("已停止等待"))
+				s.meta.SetText(tr("提交号 ") + res.ID)
+				s.pg.g.busy(false, tr("已停止等待"))
 
 			default:
 				verdict := strings.ToUpper(strings.TrimSpace(res.Verdict.Verdict))
@@ -215,8 +215,8 @@ func (s *submitPage) run(wait bool) {
 				if d := strings.TrimSpace(res.Verdict.Detail); d != "" {
 					s.detail.SetText(d)
 				}
-				s.status.SetText("提交号 " + res.ID)
-				s.pg.g.busy(false, "远端判定："+verdict)
+				s.status.SetText(tr("提交号 ") + res.ID)
+				s.pg.g.busy(false, tr("远端判定：")+verdict)
 			}
 		})
 	}()
@@ -225,14 +225,14 @@ func (s *submitPage) run(wait bool) {
 // stop 停止等待判题（提交已经发出，无法撤回）。
 func (s *submitPage) stop() {
 	s.cancel.Store(true)
-	s.status.SetText("正在停止等待 ...")
+	s.status.SetText(tr("正在停止等待 ..."))
 }
 
 // scoreText 组合得分与时空信息。
 func scoreText(v remoteVerdict) string {
 	var parts []string
 	if v.MaxScore > 0 || v.Score > 0 {
-		parts = append(parts, fmt.Sprintf("%d/%d 分", v.Score, v.MaxScore))
+		parts = append(parts, fmt.Sprintf(tr("%d/%d 分"), v.Score, v.MaxScore))
 	}
 	if v.TimeMS > 0 || v.MemoryKB > 0 {
 		parts = append(parts, fmt.Sprintf("%dms · %dKB", v.TimeMS, v.MemoryKB))

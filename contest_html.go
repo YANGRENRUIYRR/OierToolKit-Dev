@@ -34,7 +34,7 @@ func exportContestHTML(c contest, res contestResult, outPath string) (string, er
 	page := renderContestHTML(c, res, rows, full)
 
 	if outPath == "" {
-		outPath = filepath.Join(c.Dir, sanitizeFileName(c.Cfg.Name)+"-排名.html")
+		outPath = filepath.Join(c.Dir, sanitizeFileName(c.Cfg.Name)+tr("-排名.html"))
 	}
 	if err := os.WriteFile(outPath, []byte(page), 0644); err != nil {
 		return "", err
@@ -49,7 +49,7 @@ func renderContestHTML(c contest, res contestResult, rows []rankRow, full float6
 	title := html.EscapeString(c.Cfg.Name)
 	b.WriteString("<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n<meta charset=\"utf-8\">\n")
 	b.WriteString("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n")
-	fmt.Fprintf(&b, "<title>%s · 排名</title>\n", title)
+	fmt.Fprintf(&b, tr("<title>%s · 排名</title>\n"), title)
 	b.WriteString("<style>\n" + contestCSS + "</style>\n</head>\n<body>\n")
 
 	b.WriteString("<div class=\"wrap\">\n")
@@ -59,11 +59,11 @@ func renderContestHTML(c contest, res contestResult, rows []rankRow, full float6
 
 	// 榜单表格：名次 / 选手 / 每题 / 总分。
 	b.WriteString("<table class=\"board\">\n<thead><tr>")
-	b.WriteString("<th class=\"rank\">#</th><th class=\"name\">选手</th>")
+	b.WriteString(tr("<th class=\"rank\">#</th><th class=\"name\">选手</th>"))
 	for _, p := range res.Problems {
-		fmt.Fprintf(&b, "<th class=\"prob\" title=\"满分 %.0f\">%s</th>", fullScoreOf(c, p), html.EscapeString(p))
+		fmt.Fprintf(&b, tr("<th class=\"prob\" title=\"满分 %.0f\">%s</th>"), fullScoreOf(c, p), html.EscapeString(p))
 	}
-	b.WriteString("<th class=\"total\">总分</th></tr></thead>\n<tbody>\n")
+	b.WriteString(tr("<th class=\"total\">总分</th></tr></thead>\n<tbody>\n"))
 
 	for _, row := range rows {
 		cls := "row"
@@ -82,7 +82,7 @@ func renderContestHTML(c contest, res contestResult, rows []rankRow, full float6
 	b.WriteString("</tbody>\n</table>\n")
 
 	// 每题的子任务明细。
-	b.WriteString("<h2>题目明细</h2>\n")
+	b.WriteString(tr("<h2>题目明细</h2>\n"))
 	for _, probName := range res.Problems {
 		prob, ok := c.problemOf(probName)
 		if !ok {
@@ -158,7 +158,7 @@ func renderContestHTML(c contest, res contestResult, rows []rankRow, full float6
 		}
 	}
 
-	b.WriteString("<p class=\"foot\">由 OierToolKit " + html.EscapeString(otkVersion) + " 生成</p>\n")
+	b.WriteString(tr("<p class=\"foot\">由 OierToolKit ") + html.EscapeString(otkVersion) + tr("生成") + "</p>\n")
 	b.WriteString("</div>\n</body>\n</html>\n")
 	return b.String()
 }
@@ -175,7 +175,7 @@ func firstLine(s string) string {
 		if fallback == "" {
 			fallback = t
 		}
-		if strings.Contains(t, "error:") || strings.Contains(t, "错误：") {
+		if strings.Contains(t, "error:") || strings.Contains(t, tr("错误：")) {
 			return t
 		}
 	}
@@ -211,11 +211,11 @@ func subtaskScoreClass(awarded, full float64) string {
 func subtaskModeLabel(mode string) string {
 	switch mode {
 	case subtaskAny:
-		return "任意通过"
+		return tr("任意通过")
 	case subtaskSum:
-		return "按比例"
+		return tr("按比例")
 	default:
-		return "捆绑"
+		return tr("捆绑")
 	}
 }
 

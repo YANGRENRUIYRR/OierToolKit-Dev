@@ -49,10 +49,10 @@ func writeShortcut(desktop, target string) (string, error) {
 		// 单文件做不了自定义图标；保持脚本最简。
 		content := "#!/bin/sh\nexec \"" + target + "\" >/dev/null 2>&1 &\n"
 		if err := os.WriteFile(path, []byte(content), 0755); err != nil {
-			return "", fmt.Errorf("写入快捷方式失败：%v", err)
+			return "", fmt.Errorf(tr("写入快捷方式失败：%v"), err)
 		}
 		if err := os.Chmod(path, 0755); err != nil {
-			return "", fmt.Errorf("设置快捷方式权限失败：%v", err)
+			return "", fmt.Errorf(tr("设置快捷方式权限失败：%v"), err)
 		}
 		return path, nil
 	}
@@ -69,7 +69,7 @@ func writeShortcut(desktop, target string) (string, error) {
 		"Type=Application",
 		"Version=1.0",
 		"Name=OierToolKit",
-		"Comment=本地评测 · 题目管理 · 对拍",
+		tr("Comment=本地评测 · 题目管理 · 对拍"),
 		`Exec="` + target + `"`,
 		iconLine,
 		"Terminal=false",
@@ -80,11 +80,11 @@ func writeShortcut(desktop, target string) (string, error) {
 	content = strings.ReplaceAll(content, "\n\n", "\n")
 
 	if err := os.WriteFile(path, []byte(content), 0755); err != nil {
-		return "", fmt.Errorf("写入快捷方式失败：%v", err)
+		return "", fmt.Errorf(tr("写入快捷方式失败：%v"), err)
 	}
 	// 部分桌面环境要求 .desktop 文件带可执行位才算"可信"。
 	if err := os.Chmod(path, 0755); err != nil {
-		return "", fmt.Errorf("设置快捷方式权限失败：%v", err)
+		return "", fmt.Errorf(tr("设置快捷方式权限失败：%v"), err)
 	}
 	return path, nil
 }
@@ -97,7 +97,7 @@ func ensureDesktopIconFile() (string, error) {
 		return path, nil
 	}
 	if err := os.WriteFile(path, guiIconPngData, 0644); err != nil {
-		return "", fmt.Errorf("无法写入图标文件：%v", err)
+		return "", fmt.Errorf(tr("无法写入图标文件：%v"), err)
 	}
 	return path, nil
 }

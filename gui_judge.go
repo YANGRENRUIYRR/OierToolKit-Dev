@@ -69,26 +69,26 @@ type judgePage struct {
 func newJudgePage(pg *projectPage) *judgePage {
 	j := &judgePage{pg: pg}
 
-	j.status = caption("点“编译并评测”开始，默认跟随项目配置的时限与内存。")
-	j.detail = hint("选择左侧测试点查看详情。")
+	j.status = caption(tr("点“编译并评测”开始，默认跟随项目配置的时限与内存。"))
+	j.detail = hint(tr("选择左侧测试点查看详情。"))
 	j.detail.Wrapping = fyne.TextWrapWord
 
 	// 评分用大号等宽数字，一眼能看到。
 	j.score = widget.NewLabel("—")
 	j.score.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
 	j.score.SizeName = theme.SizeNameHeadingText
-	j.note = caption("尚未评测")
+	j.note = caption(tr("尚未评测"))
 	j.target = hint("")
 	j.bar = widget.NewProgressBar()
 	j.bar.Hide()
 
-	j.runBtn = widget.NewButtonWithIcon("编译并评测", theme.MediaPlayIcon(), j.run)
+	j.runBtn = widget.NewButtonWithIcon(tr("编译并评测"), theme.MediaPlayIcon(), j.run)
 	j.runBtn.Importance = widget.HighImportance
-	j.stopBtn = widget.NewButtonWithIcon("停止", theme.MediaStopIcon(), j.stop)
+	j.stopBtn = widget.NewButtonWithIcon(tr("停止"), theme.MediaStopIcon(), j.stop)
 	j.stopBtn.Disable()
-	j.retestBtn = widget.NewButtonWithIcon("重测此点", theme.ViewRefreshIcon(), j.retest)
+	j.retestBtn = widget.NewButtonWithIcon(tr("重测此点"), theme.ViewRefreshIcon(), j.retest)
 	j.retestBtn.Disable()
-	j.histBtn = widget.NewButtonWithIcon("历史", theme.HistoryIcon(), j.showHistory)
+	j.histBtn = widget.NewButtonWithIcon(tr("历史"), theme.HistoryIcon(), j.showHistory)
 
 	j.list = widget.NewList(
 		func() int { return len(j.points) },
@@ -132,7 +132,7 @@ func newJudgePage(pg *projectPage) *judgePage {
 
 // buildScoreCard 是评测页左下角的评分卡片：大号分数 + 一句话结论。
 func (j *judgePage) buildScoreCard() fyne.CanvasObject {
-	title := caption("评分")
+	title := caption(tr("评分"))
 	right := container.NewVBox(j.score, j.note)
 	card := container.NewVBox(
 		container.NewBorder(nil, nil, title, nil, right),
@@ -154,10 +154,10 @@ func (j *judgePage) run() {
 	j.points = nil
 	j.list.UnselectAll()
 	j.list.Refresh()
-	j.detail.SetText("正在编译 ...")
+	j.detail.SetText(tr("正在编译 ..."))
 	j.score.SetText("—")
-	j.note.SetText("评测中 ...")
-	j.status.SetText("编译 " + name + ".cpp ...")
+	j.note.SetText(tr("评测中 ..."))
+	j.status.SetText(fmt.Sprintf(tr("编译 %s.cpp ..."), name))
 	j.runBtn.Disable()
 	j.stopBtn.Enable()
 	j.target.SetText(j.targetText(p))
@@ -179,10 +179,10 @@ func (j *judgePage) run() {
 				j.runBtn.Enable()
 				j.stopBtn.Disable()
 				j.bar.Hide()
-				j.note.SetText("编译失败")
-				j.status.SetText("[CE] 编译失败")
+				j.note.SetText(tr("编译失败"))
+				j.status.SetText("[CE] " + tr("编译失败"))
 				j.detail.SetText(log)
-				j.pg.g.busy(false, "编译失败")
+				j.pg.g.busy(false, tr("编译失败"))
 			})
 			return
 		}
@@ -198,10 +198,10 @@ func (j *judgePage) run() {
 				j.runBtn.Enable()
 				j.stopBtn.Disable()
 				j.bar.Hide()
-				j.note.SetText("checker 编译失败")
-				j.status.SetText("[CE] checker 编译失败")
+				j.note.SetText(tr("checker 编译失败"))
+				j.status.SetText("[CE] " + tr("checker 编译失败"))
 				j.detail.SetText(ceLog)
-				j.pg.g.busy(false, "checker 编译失败")
+				j.pg.g.busy(false, tr("checker 编译失败"))
 			})
 			return
 		}
@@ -210,11 +210,11 @@ func (j *judgePage) run() {
 			if !j.alive(gen) {
 				return
 			}
-			j.status.SetText(fmt.Sprintf("正在评测 %s（%d 线程）", name, threads))
-			j.detail.SetText("正在运行测试点 ...")
+			j.status.SetText(fmt.Sprintf(tr("正在评测 %s（%d 线程）"), name, threads))
+			j.detail.SetText(tr("正在运行测试点 ..."))
 			j.bar.SetValue(0)
 			j.bar.Show()
-			j.pg.g.busy(true, "评测中 ...")
+			j.pg.g.busy(true, tr("评测中 ..."))
 		})
 
 		index := readIndex(p)
@@ -272,9 +272,9 @@ func (j *judgePage) run() {
 			j.refreshScore()
 
 			if len(rep.Points) == 0 {
-				j.note.SetText("没有可评测的样例")
-				j.detail.SetText("项目里还没有样例：放入 .in 与 .out/.ans 后到“样例”页同步。")
-				j.pg.g.busy(false, "没有样例")
+				j.note.SetText(tr("没有可评测的样例"))
+				j.detail.SetText(tr("项目里还没有样例：放入 .in 与 .out/.ans 后到“样例”页同步。"))
+				j.pg.g.busy(false, tr("没有样例"))
 				return
 			}
 
@@ -282,28 +282,28 @@ func (j *judgePage) run() {
 			j.list.Select(0)
 
 			if j.cancel.Load() {
-				j.status.SetText(fmt.Sprintf("已停止（完成 %d/%d）", len(rep.Points), total))
-				j.pg.g.busy(false, "评测已停止")
+				j.status.SetText(fmt.Sprintf(tr("已停止（完成 %d/%d）"), len(rep.Points), total))
+				j.pg.g.busy(false, tr("评测已停止"))
 				return
 			}
 			if rep.allAC() {
 				if len(rep.Warnings) > 0 {
-					j.status.SetText(fmt.Sprintf("评测完成，全部通过（%d 条编译警告）", len(rep.Warnings)))
+					j.status.SetText(fmt.Sprintf(tr("评测完成，全部通过（%d 条编译警告）"), len(rep.Warnings)))
 				} else {
-					j.status.SetText(fmt.Sprintf("评测完成，全部通过（%d 线程）", threads))
+					j.status.SetText(fmt.Sprintf(tr("评测完成，全部通过（%d 线程）"), threads))
 				}
 			} else {
-				j.status.SetText("评测完成，存在未通过的测试点")
+				j.status.SetText(tr("评测完成，存在未通过的测试点"))
 			}
 			if len(rep.Warnings) > 0 {
 				// 全部通过时右侧详情正好空闲，用来展示警告全文。
 				if rep.allAC() {
-					j.detail.SetText("编译警告（不影响判定）：\n" + strings.Join(rep.Warnings, "\n"))
+					j.detail.SetText(tr("编译警告（不影响判定）：") + "\n" + strings.Join(rep.Warnings, "\n"))
 				} else {
-					j.detail.SetText(j.detail.Text + "\n\n编译警告（不影响判定）：\n" + strings.Join(rep.Warnings, "\n"))
+					j.detail.SetText(j.detail.Text + "\n\n" + tr("编译警告（不影响判定）：") + "\n" + strings.Join(rep.Warnings, "\n"))
 				}
 			}
-			j.pg.g.busy(false, fmt.Sprintf("评测完成：%d/%d AC，%s",
+			j.pg.g.busy(false, fmt.Sprintf(tr("评测完成：%d/%d AC，%s"),
 				rep.passed(), len(rep.Points), scoreTextOf(rep)))
 		})
 	}()
@@ -312,12 +312,12 @@ func (j *judgePage) run() {
 // targetText 是页面顶部的目标说明。
 func (j *judgePage) targetText(p project) string {
 	props := p.cfg()
-	ioMode := "标准输入输出"
+	ioMode := tr("标准输入输出")
 	if fileIOFromProps(props, p.codeName()) != nil {
-		ioMode = "文件读写"
+		ioMode = tr("文件读写")
 	}
 	if spjEnabled(p, props) {
-		return p.codeName() + ".cpp · " + ioMode + " · 特殊判题（checker.cpp）"
+		return p.codeName() + ".cpp · " + ioMode + " · " + tr("特殊判题（checker.cpp）")
 	}
 	return p.codeName() + ".cpp · " + ioMode
 }
@@ -337,8 +337,8 @@ func (j *judgePage) retest() {
 	j.runBtn.Disable()
 	j.stopBtn.Enable()
 	j.retestBtn.Disable()
-	j.status.SetText("重测 #" + id + " ...")
-	j.pg.g.busy(true, "重测 #"+id+" ...")
+	j.status.SetText(fmt.Sprintf(tr("重测 #%s ..."), id))
+	j.pg.g.busy(true, fmt.Sprintf(tr("重测 #%s ..."), id))
 
 	go func() {
 		props := p.cfg()
@@ -354,9 +354,9 @@ func (j *judgePage) retest() {
 					j.running.Store(false)
 					j.runBtn.Enable()
 					j.stopBtn.Disable()
-					j.status.SetText("[CE] 编译失败")
+					j.status.SetText("[CE] " + tr("编译失败"))
 					j.detail.SetText(log)
-					j.pg.g.busy(false, "编译失败")
+					j.pg.g.busy(false, tr("编译失败"))
 				})
 				return
 			}
@@ -370,9 +370,9 @@ func (j *judgePage) retest() {
 				j.running.Store(false)
 				j.runBtn.Enable()
 				j.stopBtn.Disable()
-				j.status.SetText("[CE] checker 编译失败")
+				j.status.SetText("[CE] " + tr("checker 编译失败"))
 				j.detail.SetText(ceLog)
-				j.pg.g.busy(false, "checker 编译失败")
+				j.pg.g.busy(false, tr("checker 编译失败"))
 			})
 			return
 		}
@@ -419,12 +419,12 @@ func (j *judgePage) retest() {
 				j.retestBtn.Enable()
 			}
 			if len(rep.Points) == 0 {
-				j.status.SetText("重测失败：样例文件缺失")
-				j.pg.g.busy(false, "重测失败")
+				j.status.SetText(tr("重测失败：样例文件缺失"))
+				j.pg.g.busy(false, tr("重测失败"))
 				return
 			}
-			j.status.SetText(fmt.Sprintf("重测 #%s 完成（%s）", id, rep.Points[0].Verdict))
-			j.pg.g.busy(false, fmt.Sprintf("重测 #%s：%s", id, rep.Points[0].Verdict))
+			j.status.SetText(fmt.Sprintf(tr("重测 #%s 完成（%s）"), id, rep.Points[0].Verdict))
+			j.pg.g.busy(false, fmt.Sprintf(tr("重测 #%s：%s"), id, rep.Points[0].Verdict))
 		})
 	}()
 }
@@ -434,7 +434,7 @@ func (j *judgePage) retest() {
 func (j *judgePage) showHistory() {
 	entries := readHistory(j.pg.p, 50)
 	if len(entries) == 0 {
-		dialog.ShowInformation("评测历史", "还没有评测记录。\n每次“编译并评测”都会自动记录到这里。", j.pg.g.win)
+		dialog.ShowInformation(tr("评测历史"), tr("还没有评测记录。\n每次“编译并评测”都会自动记录到这里。"), j.pg.g.win)
 		return
 	}
 
@@ -446,7 +446,7 @@ func (j *judgePage) showHistory() {
 	rows := make([]histRow, len(entries))
 	for i := len(entries) - 1; i >= 0; i-- {
 		e := entries[i]
-		status := fmt.Sprintf("%d/%d 全部通过", e.Passed, e.Total)
+		status := fmt.Sprintf(tr("%d/%d 全部通过"), e.Passed, e.Total)
 		if e.Passed < e.Total {
 			status = fmt.Sprintf("%d/%d", e.Passed, e.Total)
 			if w := firstWorstVerdict(e.Points); w != "" {
@@ -462,7 +462,7 @@ func (j *judgePage) showHistory() {
 	}
 	trend := caption("")
 	if spark := sparkline(walls); spark != "" {
-		trend.SetText("最慢点耗时趋势（旧 → 新）  " + spark)
+		trend.SetText(tr("最慢点耗时趋势（旧 → 新）  ") + spark)
 	}
 
 	detail := widget.NewLabel("")
@@ -485,14 +485,14 @@ func (j *judgePage) showHistory() {
 		}
 		e := rows[id].e
 		var b strings.Builder
-		fmt.Fprintf(&b, "%s    %d/%d 通过    限制 %.2fs / %.0fMB\n\n",
+		fmt.Fprintf(&b, tr("%s    %d/%d 通过    限制 %.2fs / %.0fMB\n\n"),
 			e.Time, e.Passed, e.Total, e.TimeLimit, e.MemLimit)
 		for _, pt := range e.Points {
 			switch pt.Verdict {
 			case verdictTLE:
 				fmt.Fprintf(&b, "#%s  TLE   >%.0fms\n", pt.ID, e.TimeLimit*1000)
 			case verdictMissing:
-				fmt.Fprintf(&b, "#%s  缺失\n", pt.ID)
+				fmt.Fprintf(&b, "#%s  %s\n", pt.ID, tr("缺失"))
 			default:
 				fmt.Fprintf(&b, "#%s  %-4s  %dms  %s\n", pt.ID, pt.Verdict, pt.WallMS, memStr(pt))
 			}
@@ -504,12 +504,12 @@ func (j *judgePage) showHistory() {
 	}
 
 	var d dialog.Dialog
-	clear := widget.NewButton("清空历史", func() {
+	clear := widget.NewButton(tr("清空历史"), func() {
 		d.Hide()
-		dialog.ShowConfirm("清空评测历史", "将删除这个项目的全部评测记录，确定吗？", func(ok bool) {
+		dialog.ShowConfirm(tr("清空评测历史"), tr("将删除这个项目的全部评测记录，确定吗？"), func(ok bool) {
 			if ok {
 				clearHistory(j.pg.p)
-				j.pg.g.setStatus("评测历史已清空")
+				j.pg.g.setStatus(tr("评测历史已清空"))
 			}
 		}, j.pg.g.win)
 	})
@@ -540,13 +540,13 @@ func (j *judgePage) showHistory() {
 			}
 			name := f.URI().Name()
 			_ = f.Close()
-			j.pg.g.setStatus(fmt.Sprintf("已导出 %d 条记录到 %s", len(entries), name))
+			j.pg.g.setStatus(fmt.Sprintf(tr("已导出 %d 条记录到 %s"), len(entries), name))
 		}, j.pg.g.win)
 		save.SetFileName(fmt.Sprintf("history-%s.%s", j.pg.p.codeName(), format))
 		save.Show()
 	}
-	exportCsvBtn := widget.NewButton("导出 CSV", func() { export("csv") })
-	exportJsonBtn := widget.NewButton("导出 JSON", func() { export("json") })
+	exportCsvBtn := widget.NewButton(tr("导出 CSV"), func() { export("csv") })
+	exportJsonBtn := widget.NewButton(tr("导出 JSON"), func() { export("json") })
 
 	body := container.NewHSplit(list, container.NewVScroll(detail))
 	body.SetOffset(0.34)
@@ -557,7 +557,7 @@ func (j *judgePage) showHistory() {
 		nil, nil,
 		body,
 	)
-	d = dialog.NewCustom(fmt.Sprintf("评测历史（最近 %d 次）", len(entries)), "关闭", content, j.pg.g.win)
+	d = dialog.NewCustom(fmt.Sprintf(tr("评测历史（最近 %d 次）"), len(entries)), tr("关闭"), content, j.pg.g.win)
 	d.Resize(fyne.NewSize(640, 460))
 	d.Show()
 }
@@ -569,8 +569,8 @@ func (j *judgePage) compileOnly() {
 		return
 	}
 	p := j.pg.p
-	j.pg.g.busy(true, "编译 "+p.codeName()+" ...")
-	j.note.SetText("编译中 ...")
+	j.pg.g.busy(true, fmt.Sprintf(tr("编译 %s ..."), p.codeName()))
+	j.note.SetText(tr("编译中 ..."))
 	gen := j.pg.gen
 	go func() {
 		log, ok := compileProjectTo(p.sourcePath(), p.exePath(), p.cfg())
@@ -579,11 +579,11 @@ func (j *judgePage) compileOnly() {
 				return
 			}
 			if ok {
-				j.pg.g.busy(false, "编译成功")
-				j.note.SetText("编译成功，可开始评测")
+				j.pg.g.busy(false, tr("编译成功"))
+				j.note.SetText(tr("编译成功，可开始评测"))
 			} else {
-				j.pg.g.busy(false, "编译失败")
-				j.note.SetText("编译失败")
+				j.pg.g.busy(false, tr("编译失败"))
+				j.note.SetText(tr("编译失败"))
 				j.detail.SetText(log)
 			}
 		})
@@ -603,9 +603,9 @@ func (j *judgePage) reload() {
 	j.list.UnselectAll()
 	j.list.Refresh()
 	j.score.SetText("—")
-	j.note.SetText("尚未评测")
-	j.detail.SetText("选择左侧测试点查看详情。")
-	j.status.SetText("点“编译并评测”开始，默认跟随项目配置的时限与内存。")
+	j.note.SetText(tr("尚未评测"))
+	j.detail.SetText(tr("选择左侧测试点查看详情。"))
+	j.status.SetText(tr("点“编译并评测”开始，默认跟随项目配置的时限与内存。"))
 }
 
 // setLimits 记录本次评测使用的时限与内存限制（后台线程安全，仅写数值）。
@@ -618,7 +618,7 @@ func (j *judgePage) refreshScore() {
 	total := len(j.points)
 	if total == 0 {
 		j.score.SetText("—")
-		j.note.SetText("尚未评测")
+		j.note.SetText(tr("尚未评测"))
 		return
 	}
 	passed := 0
@@ -634,13 +634,13 @@ func (j *judgePage) refreshScore() {
 
 	switch {
 	case passed == total:
-		j.note.SetText(fmt.Sprintf("全部通过 · %d 分", 100))
+		j.note.SetText(fmt.Sprintf(tr("全部通过 · %d 分"), 100))
 		j.score.Importance = widget.SuccessImportance
 	case worst == verdictMissing:
-		j.note.SetText("有样例文件缺失")
+		j.note.SetText(tr("有样例文件缺失"))
 		j.score.Importance = widget.WarningImportance
 	default:
-		j.note.SetText(fmt.Sprintf("首次未通过：#%s %s", firstFailedID(j.points), worst))
+		j.note.SetText(fmt.Sprintf(tr("首次未通过：#%s %s"), firstFailedID(j.points), worst))
 		j.score.Importance = widget.DangerImportance
 	}
 	j.score.Refresh()
@@ -659,15 +659,15 @@ func firstFailedID(points []pointResult) string {
 // scoreTextOf 生成「通过 x/y，得分 z」形式的短句。
 func scoreTextOf(rep judgeReport) string {
 	if len(rep.Points) == 0 {
-		return "无样例"
+		return tr("无样例")
 	}
-	return fmt.Sprintf("%d 分", rep.passed()*100/len(rep.Points))
+	return fmt.Sprintf(tr("%d 分"), rep.passed()*100/len(rep.Points))
 }
 
 // stop 请求中断评测：当前测试点跑完后不再继续。
 func (j *judgePage) stop() {
 	j.cancel.Store(true)
-	j.status.SetText("正在停止 ...")
+	j.status.SetText(tr("正在停止 ..."))
 }
 
 // alive 判断后台任务是否仍应更新界面。
@@ -679,7 +679,7 @@ func (j *judgePage) alive(gen int64) bool {
 func (j *judgePage) showDetail(pt pointResult) {
 	switch pt.Verdict {
 	case verdictAC:
-		detail := fmt.Sprintf("#%s 通过\n\n用时 %dms，峰值内存 %s。", pt.ID, pt.WallMS, memStr(pt))
+		detail := fmt.Sprintf(tr("#%s 通过\n\n用时 %dms，峰值内存 %s。"), pt.ID, pt.WallMS, memStr(pt))
 		if strings.TrimSpace(pt.Detail) != "" {
 			detail += "\n\nchecker：" + pt.Detail
 		}
@@ -687,24 +687,24 @@ func (j *judgePage) showDetail(pt pointResult) {
 	case verdictWA:
 		if strings.TrimSpace(pt.Detail) != "" && pt.Expected == "" && pt.Actual == "" {
 			// 特殊判题的反馈：没有期望/实际对比，只有 checker 的意见。
-			j.detail.SetText(fmt.Sprintf("#%s 未通过\n\n用时 %dms，峰值内存 %s\n\n%s",
+			j.detail.SetText(fmt.Sprintf(tr("#%s 未通过\n\n用时 %dms，峰值内存 %s\n\n%s"),
 				pt.ID, pt.WallMS, memStr(pt), pt.Detail))
 			return
 		}
-		j.detail.SetText(fmt.Sprintf("#%s 输出不一致\n\n期望：\n%s\n\n实际：\n%s", pt.ID, pt.Expected, pt.Actual))
+		j.detail.SetText(fmt.Sprintf(tr("#%s 输出不一致\n\n期望：\n%s\n\n实际：\n%s"), pt.ID, pt.Expected, pt.Actual))
 	case verdictRE:
 		detail := pt.Detail
 		if strings.TrimSpace(detail) == "" {
-			detail = "（程序没有输出 stderr）"
+			detail = tr("（程序没有输出 stderr）")
 		}
-		j.detail.SetText(fmt.Sprintf("#%s 运行时错误\n\n用时 %dms，峰值内存 %s\n\n%s",
+		j.detail.SetText(fmt.Sprintf(tr("#%s 运行时错误\n\n用时 %dms，峰值内存 %s\n\n%s"),
 			pt.ID, pt.WallMS, memStr(pt), detail))
 	case verdictTLE:
-		j.detail.SetText(fmt.Sprintf("#%s 超出时限（%.2fs）", pt.ID, j.limit))
+		j.detail.SetText(fmt.Sprintf(tr("#%s 超出时限（%.2fs）"), pt.ID, j.limit))
 	case verdictMLE:
-		j.detail.SetText(fmt.Sprintf("#%s 超出内存限制（%.2fMB / %.0fMB）", pt.ID, pt.MemMB, j.memCap))
+		j.detail.SetText(fmt.Sprintf(tr("#%s 超出内存限制（%.2fMB / %.0fMB）"), pt.ID, pt.MemMB, j.memCap))
 	case verdictMissing:
-		j.detail.SetText(fmt.Sprintf("#%s 样例文件缺失：需要同时存在 %s.in 与 %s.out/.ans。", pt.ID, pt.ID, pt.ID))
+		j.detail.SetText(fmt.Sprintf(tr("#%s 样例文件缺失：需要同时存在 %s.in 与 %s.out/.ans。"), pt.ID, pt.ID, pt.ID))
 	default:
 		j.detail.SetText(fmt.Sprintf("#%s %s", pt.ID, pt.Verdict))
 	}
@@ -741,7 +741,7 @@ func (r *pointRow) update(pt pointResult, limit float64) {
 
 	switch pt.Verdict {
 	case verdictMissing:
-		r.info.Text = "文件缺失"
+		r.info.Text = tr("文件缺失")
 	case verdictTLE:
 		r.info.Text = fmt.Sprintf(">%.0fms", limit*1000)
 	case verdictRE, verdictMLE, verdictAC, verdictWA:

@@ -56,7 +56,7 @@ func openPath(path string) error {
 		cmd = exec.Command("xdg-open", path)
 	}
 	if err := detached(cmd); err != nil {
-		return fmt.Errorf("无法打开 %s: %v", path, err)
+		return fmt.Errorf(tr("无法打开 %s: %v"), path, err)
 	}
 	return nil
 }
@@ -66,14 +66,14 @@ func launchEditor(p project) error {
 	editor := propsOr(readIni(globalConfigPath()), "editor", defaultEditorCommand())
 	parts := splitQuoted(fmt.Sprintf(editor, p.sourcePath()))
 	if len(parts) == 0 {
-		return fmt.Errorf("无效的编辑器命令，请在设置里修改")
+		return fmt.Errorf("%s", tr("无效的编辑器命令，请在设置里修改"))
 	}
 
 	cmd := exec.Command(parts[0], parts[1:]...)
 	cmd.Dir = p.Dir
 	hideProcWindow(cmd) // 防止控制台类编辑器闪黑框；GUI 编辑器窗口不受影响
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("打开编辑器 %s 失败: %v（可在设置里改成自己的编辑器）", parts[0], err)
+		return fmt.Errorf(tr("打开编辑器 %s 失败: %v（可在设置里改成自己的编辑器）"), parts[0], err)
 	}
 	go func() { _ = cmd.Wait() }()
 	return nil
@@ -82,7 +82,7 @@ func launchEditor(p project) error {
 // launchGdb 在终端里用 gdb 调试已编译出的可执行文件——gdb 需要真实终端。
 func launchGdb(p project) error {
 	if !fileExists(p.exePath()) {
-		return fmt.Errorf("未找到可执行文件，先运行一次评测或编译")
+		return fmt.Errorf("%s", tr("未找到可执行文件，先运行一次评测或编译"))
 	}
 	return openTerminal(p.Dir, "gdb --args "+quoteArg(p.exePath()))
 }
@@ -103,7 +103,7 @@ func openTerminal(dir, command string) error {
 		inner := "cd /d " + quoteArg(dir) + " && " + command
 		cmd := exec.Command("cmd.exe", "/c", "start", "", "cmd.exe", "/k", inner)
 		if err := detached(cmd); err != nil {
-			return fmt.Errorf("无法启动终端: %v", err)
+			return fmt.Errorf(tr("无法启动终端: %v"), err)
 		}
 		return nil
 
@@ -111,7 +111,7 @@ func openTerminal(dir, command string) error {
 		script := fmt.Sprintf(`tell application "Terminal" to do script "cd %s && %s"`, dir, command)
 		cmd := exec.Command("osascript", "-e", script)
 		if err := detached(cmd); err != nil {
-			return fmt.Errorf("无法启动终端: %v", err)
+			return fmt.Errorf(tr("无法启动终端: %v"), err)
 		}
 		return nil
 
@@ -135,7 +135,7 @@ func openTerminal(dir, command string) error {
 			}
 			return nil
 		}
-		return fmt.Errorf("没有找到可用的终端程序（试过 x-terminal-emulator / gnome-terminal / konsole / xterm）")
+		return fmt.Errorf("%s", tr("没有找到可用的终端程序（试过 x-terminal-emulator / gnome-terminal / konsole / xterm）"))
 	}
 }
 

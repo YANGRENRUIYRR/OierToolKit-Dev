@@ -130,7 +130,7 @@ func cmdGui() {
 		go func() {
 			if latest := fetchLatestVersion(); isNewerVersion(latest, otkVersion) {
 				ui(func() {
-					g.setStatus(fmt.Sprintf("发现新版本 %s（当前 %s），%s 可下载",
+					g.setStatus(fmt.Sprintf(tr("发现新版本 %s（当前 %s），%s 可下载"),
 						latest, otkVersion, releasesPageURL))
 				})
 			}
@@ -242,7 +242,7 @@ func (g *guiApp) toggleMaximized() {
 
 // build 组装顶部工具栏、左侧项目库、右侧详情与底部状态栏。
 func (g *guiApp) build() {
-	g.status = widget.NewLabel("就绪")
+	g.status = widget.NewLabel(tr("就绪"))
 	g.spinner = widget.NewProgressBarInfinite()
 	g.spinner.Hide()
 	g.detail = container.NewStack(g.emptyView())
@@ -277,12 +277,12 @@ func (g *guiApp) buildHeader() fyne.CanvasObject {
 
 	title := widget.NewLabelWithStyle("OierToolKit", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	title.SizeName = theme.SizeNameSubHeadingText
-	subtitle := caption(otkVersion + " · 本地评测 · 题目管理 · 对拍")
+	subtitle := caption(otkVersion + tr(" · 本地评测 · 题目管理 · 对拍"))
 
 	left := container.NewHBox(logo, container.NewVBox(title, subtitle))
 
-	newBtn := widget.NewButtonWithIcon("新建项目", theme.ContentAddIcon(), g.newProjectDialog)
-	cloneBtn := widget.NewButtonWithIcon("从网站添加题目", theme.DownloadIcon(), g.cloneDialog)
+	newBtn := widget.NewButtonWithIcon(tr("新建项目"), theme.ContentAddIcon(), g.newProjectDialog)
+	cloneBtn := widget.NewButtonWithIcon(tr("从网站添加题目"), theme.DownloadIcon(), g.cloneDialog)
 	settingsBtn := widget.NewButtonWithIcon("", theme.SettingsIcon(), g.settingsDialog)
 	aboutBtn := widget.NewButtonWithIcon("", theme.InfoIcon(), g.aboutDialog)
 	right := container.NewHBox(newBtn, cloneBtn, settingsBtn, aboutBtn)
@@ -293,7 +293,7 @@ func (g *guiApp) buildHeader() fyne.CanvasObject {
 
 func (g *guiApp) buildSidebar() fyne.CanvasObject {
 	g.search = widget.NewEntry()
-	g.search.SetPlaceHolder("搜索项目名或路径")
+	g.search.SetPlaceHolder(tr("搜索项目名或路径"))
 	g.search.OnChanged = func(string) { g.applyFilter() }
 	g.search.SetIcon(theme.SearchIcon())
 
@@ -322,16 +322,16 @@ func (g *guiApp) buildSidebar() fyne.CanvasObject {
 
 	g.count = caption("")
 
-	contestBtn := widget.NewButtonWithIcon("模拟赛", theme.GridIcon(), g.showContestList)
+	contestBtn := widget.NewButtonWithIcon(tr("模拟赛"), theme.GridIcon(), g.showContestList)
 	contestBtn.Alignment = widget.ButtonAlignLeading
 
 	head := container.NewVBox(
 		container.NewPadded(container.NewVBox(
-			section("模拟赛"),
+			section(tr("模拟赛")),
 			contestBtn,
 		)),
 		container.NewPadded(g.search),
-		container.NewPadded(section("项目库")),
+		container.NewPadded(section(tr("项目库"))),
 	)
 	foot := container.NewPadded(g.count)
 
@@ -349,14 +349,14 @@ func (g *guiApp) emptyView() fyne.CanvasObject {
 	logo.FillMode = canvas.ImageFillContain
 	logo.SetMinSize(fyne.NewSize(72, 72))
 
-	title := widget.NewLabelWithStyle("还没有打开项目", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+	title := widget.NewLabelWithStyle(tr("还没有打开项目"), fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 	title.SizeName = theme.SizeNameSubHeadingText
-	tip := caption("从左侧选择一个项目，或新建项目、从网站添加题目")
+	tip := caption(tr("从左侧选择一个项目，或新建项目、从网站添加题目"))
 
 	btns := container.NewHBox(
 		layout.NewSpacer(),
-		widget.NewButton("新建项目", g.newProjectDialog),
-		widget.NewButton("从网站添加题目", g.cloneDialog),
+		widget.NewButton(tr("新建项目"), g.newProjectDialog),
+		widget.NewButton(tr("从网站添加题目"), g.cloneDialog),
 		layout.NewSpacer(),
 	)
 	return container.NewCenter(container.NewVBox(
@@ -400,9 +400,9 @@ func (g *guiApp) applyFilter() {
 				missing++
 			}
 		}
-		text := fmt.Sprintf("共 %d 个项目", len(g.visible))
+		text := fmt.Sprintf(tr("共 %d 个项目"), len(g.visible))
 		if missing > 0 {
-			text += fmt.Sprintf("，%d 个目录缺失", missing)
+			text += fmt.Sprintf(tr("，%d 个目录缺失"), missing)
 		}
 		g.count.SetText(text)
 	}
@@ -436,14 +436,14 @@ func (g *guiApp) showProject(dir string) {
 	g.page = pg
 	g.detail.Objects = []fyne.CanvasObject{pg.content}
 	g.detail.Refresh()
-	g.setStatus("已打开 " + filepath.Base(dir))
+	g.setStatus(fmt.Sprintf(tr("已打开 %s"), filepath.Base(dir)))
 }
 
 // missingView 提示项目目录已不存在，并给出清理项目库记录的入口。
 func (g *guiApp) missingView(dir string) fyne.CanvasObject {
-	title := widget.NewLabelWithStyle("项目目录已缺失", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+	title := widget.NewLabelWithStyle(tr("项目目录已缺失"), fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 	body := caption(dir)
-	remove := widget.NewButton("从项目库移除记录", func() {
+	remove := widget.NewButton(tr("从项目库移除记录"), func() {
 		registryRemove(dir)
 		g.reloadProjects()
 		if g.selected == dir {
@@ -502,7 +502,7 @@ func newProjectRow(onRemove func()) *projectRow {
 	r := &projectRow{name: strong(""), path: caption("")}
 	r.name.Truncation = fyne.TextTruncateEllipsis
 	r.path.Truncation = fyne.TextTruncateEllipsis
-	r.remove = deleteIconButton("删除这个项目…", onRemove)
+	r.remove = deleteIconButton(tr("删除这个项目…"), onRemove)
 	r.ExtendBaseWidget(r)
 	return r
 }
@@ -513,7 +513,7 @@ func (r *projectRow) update(name, path string, selected, missing bool) {
 	switch {
 	case missing:
 		r.name.Importance = widget.LowImportance
-		r.path.SetText("目录缺失")
+		r.path.SetText(tr("目录缺失"))
 	case selected:
 		r.name.Importance = widget.HighImportance
 	default:

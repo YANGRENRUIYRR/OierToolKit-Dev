@@ -62,7 +62,7 @@ func findContest(key string) (contest, error) {
 			return c, nil
 		}
 	}
-	return contest{}, errNotFound("模拟赛 " + key)
+	return contest{}, errNotFound(tr("模拟赛 ") + key)
 }
 
 // nowStamp 返回统一格式的时间戳字符串。
@@ -114,7 +114,7 @@ func copyFile(src, dst string) error {
 // errNotFound 统一构造"找不到"错误。
 type notFoundError struct{ What string }
 
-func (e notFoundError) Error() string { return "找不到" + e.What }
+func (e notFoundError) Error() string { return tr("找不到") + e.What }
 
 func errNotFound(what string) error { return notFoundError{What: what} }
 

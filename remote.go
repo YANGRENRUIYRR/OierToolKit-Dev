@@ -110,7 +110,7 @@ func listRemotes() []remoteDef {
 	props := readIni(globalConfigPath())
 	var out []remoteDef
 	if base := props["remote"]; base != "" {
-		out = append(out, remoteDef{Name: legacyRemoteName, Base: base, Token: props["remote_token"]})
+		out = append(out, remoteDef{Name: tr(legacyRemoteName), Base: base, Token: props["remote_token"]})
 	}
 	var names []string
 	for k := range props {
@@ -131,13 +131,13 @@ func saveRemote(name, base, token string) error {
 	name = strings.TrimSpace(name)
 	base = strings.TrimRight(strings.TrimSpace(base), "/")
 	if name == "" {
-		return fmt.Errorf("远端名称不能为空")
+		return fmt.Errorf("%s", tr("远端名称不能为空"))
 	}
 	if strings.ContainsAny(name, "=\n") {
-		return fmt.Errorf("远端名称不能含 = 或换行")
+		return fmt.Errorf("%s", tr("远端名称不能含 = 或换行"))
 	}
 	if base == "" {
-		return fmt.Errorf("远端地址不能为空")
+		return fmt.Errorf("%s", tr("远端地址不能为空"))
 	}
 
 	props := readIni(globalConfigPath())
@@ -174,7 +174,7 @@ func removeRemote(name string) error {
 		delete(props, "token."+name)
 	}
 	if !removed {
-		return fmt.Errorf("没有名为 '%s' 的远端", name)
+		return fmt.Errorf(tr("没有名为 '%s' 的远端"), name)
 	}
 	writeIni(globalConfigPath(), props)
 	return nil
@@ -215,13 +215,13 @@ func remoteCall(method, rawURL, token string, body, out any) {
 	if body != nil {
 		b, err := json.Marshal(body)
 		if err != nil {
-			fatal("请求序列化失败: %v", err)
+			fatal(tr("请求序列化失败: %v"), err)
 		}
 		rd = bytes.NewReader(b)
 	}
 	req, err := http.NewRequest(method, rawURL, rd)
 	if err != nil {
-		fatal("请求地址无效: %v", err)
+		fatal(tr("请求地址无效: %v"), err)
 	}
 	req.Header.Set("Accept", "application/json")
 	if body != nil {
@@ -232,7 +232,7 @@ func remoteCall(method, rawURL, token string, body, out any) {
 	}
 	resp, err := remoteHTTP.Do(req)
 	if err != nil {
-		fatal("连接远端失败: %v", err)
+		fatal(tr("连接远端失败: %v"), err)
 	}
 	defer resp.Body.Close()
 	data, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
@@ -244,11 +244,11 @@ func remoteCall(method, rawURL, token string, body, out any) {
 		if json.Unmarshal(data, &e) == nil && e.Error != "" {
 			msg = e.Error
 		}
-		fatal("远端 %s: %s", resp.Status, msg)
+		fatal(tr("远端 %s: %s"), resp.Status, msg)
 	}
 	if out != nil {
 		if err := json.Unmarshal(data, out); err != nil {
-			fatal("远端响应解析失败: %v", err)
+			fatal(tr("远端响应解析失败: %v"), err)
 		}
 	}
 }
@@ -260,13 +260,13 @@ func remoteDo(method, rawURL, token string, body, out any) error {
 	if body != nil {
 		b, err := json.Marshal(body)
 		if err != nil {
-			return fmt.Errorf("请求序列化失败: %v", err)
+			return fmt.Errorf(tr("请求序列化失败: %v"), err)
 		}
 		rd = bytes.NewReader(b)
 	}
 	req, err := http.NewRequest(method, rawURL, rd)
 	if err != nil {
-		return fmt.Errorf("请求地址无效: %v", err)
+		return fmt.Errorf(tr("请求地址无效: %v"), err)
 	}
 	req.Header.Set("Accept", "application/json")
 	if body != nil {
@@ -277,7 +277,7 @@ func remoteDo(method, rawURL, token string, body, out any) error {
 	}
 	resp, err := remoteHTTP.Do(req)
 	if err != nil {
-		return fmt.Errorf("连接远端失败: %v", err)
+		return fmt.Errorf(tr("连接远端失败: %v"), err)
 	}
 	defer resp.Body.Close()
 	data, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
@@ -289,11 +289,11 @@ func remoteDo(method, rawURL, token string, body, out any) error {
 		if json.Unmarshal(data, &e) == nil && e.Error != "" {
 			msg = e.Error
 		}
-		return fmt.Errorf("远端 %s: %s", resp.Status, msg)
+		return fmt.Errorf(tr("远端 %s: %s"), resp.Status, msg)
 	}
 	if out != nil {
 		if err := json.Unmarshal(data, out); err != nil {
-			return fmt.Errorf("远端响应解析失败: %v", err)
+			return fmt.Errorf(tr("远端响应解析失败: %v"), err)
 		}
 	}
 	return nil
@@ -314,12 +314,12 @@ func cmdClone(args []string) {
 		id = rest[0]
 		base = defaultRemoteBase()
 		if base == "" {
-			fatal("未配置远程地址：otk config remote <地址>，或直接 otk clone <地址> <题号>")
+			fatal(tr("未配置远程地址：otk config remote <地址>，或直接 otk clone <地址> <题号>"))
 		}
 	case 2:
 		base, id = rest[0], rest[1]
 	default:
-		fatal("用法: otk clone [-r 远端名] [<地址>] <题号>")
+		fatal(tr("用法: otk clone [-r 远端名] [<地址>] <题号>"))
 	}
 	if remoteName != "" {
 		found := false
@@ -330,35 +330,35 @@ func cmdClone(args []string) {
 			}
 		}
 		if !found {
-			fatal("没有名为 '%s' 的远端（otk config remote ls 查看）", remoteName)
+			fatal(tr("没有名为 '%s' 的远端（otk config remote ls 查看）"), remoteName)
 		}
 	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		fatal("无法获取当前目录: %v", err)
+		fatal(tr("无法获取当前目录: %v"), err)
 	}
 	_, prob, _, err := cloneProblem(cwd, base, id)
 	if err != nil {
 		fatal("%v", err)
 	}
 
-	fmt.Printf("题目 %s", prob.ID)
+	fmt.Printf(tr("题目 %s"), prob.ID)
 	if prob.Title != "" {
 		fmt.Printf(" %s", prob.Title)
 	}
 	fmt.Println()
 	var parts []string
 	if prob.TimeLimitMS > 0 {
-		parts = append(parts, fmt.Sprintf("时限 %.2fs", float64(prob.TimeLimitMS)/1000))
+		parts = append(parts, fmt.Sprintf(tr("时限 %.2fs"), float64(prob.TimeLimitMS)/1000))
 	}
 	if prob.MemoryLimitMB > 0 {
-		parts = append(parts, fmt.Sprintf("内存 %.0fMB", prob.MemoryLimitMB))
+		parts = append(parts, fmt.Sprintf(tr("内存 %.0fMB"), prob.MemoryLimitMB))
 	}
 	if len(parts) > 0 {
 		fmt.Println(strings.Join(parts, "  "))
 	}
-	fmt.Printf("样例 %d 组，远端 %s\n", len(prob.Samples), base)
+	fmt.Printf(tr("样例 %d 组，远端 %s\n"), len(prob.Samples), base)
 }
 
 // cloneProblem 在 parentDir 下新建题目目录并初始化项目（不切换进程工作
@@ -371,7 +371,7 @@ func cloneProblem(parentDir, base, id string) (project, remoteProblem, refreshRe
 	}
 	target := filepath.Join(parentDir, dirName)
 	if _, err := os.Stat(target); err == nil {
-		return project{}, remoteProblem{}, refreshResult{}, fmt.Errorf("目录 %s 已存在", dirName)
+		return project{}, remoteProblem{}, refreshResult{}, fmt.Errorf(tr("目录 %s 已存在"), dirName)
 	}
 
 	// 网络拿到题目后才建目录，请求失败不留残骸。
@@ -384,7 +384,7 @@ func cloneProblem(parentDir, base, id string) (project, remoteProblem, refreshRe
 		prob.ID = id
 	}
 	if err := os.MkdirAll(target, 0755); err != nil {
-		return project{}, remoteProblem{}, refreshResult{}, fmt.Errorf("创建目录失败: %v", err)
+		return project{}, remoteProblem{}, refreshResult{}, fmt.Errorf(tr("创建目录失败: %v"), err)
 	}
 
 	p, _, _, err := initProjectAt(target, dirName)
@@ -418,7 +418,7 @@ var cloneNameRe = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
 func cloneDirName(base, id string) (string, error) {
 	u, err := url.Parse(base)
 	if err != nil || u.Hostname() == "" {
-		return "", fmt.Errorf("地址无效（需含协议头，如 https://xxxoj.ac）: %s", base)
+		return "", fmt.Errorf(tr("地址无效（需含协议头，如 https://xxxoj.ac）: %s"), base)
 	}
 	seg := strings.Split(u.Hostname(), ".")[0]
 	return cloneNameRe.ReplaceAllString(seg+"-"+id, "-"), nil
@@ -433,7 +433,7 @@ func cmdSubmit(args []string) {
 		case "-q", "--quiet":
 			wait = false
 		default:
-			fatal("用法: otk submit [-q]")
+			fatal(tr("用法: otk submit [-q]"))
 		}
 	}
 
@@ -443,16 +443,16 @@ func cmdSubmit(args []string) {
 		fatal("%v", err)
 	}
 
-	fmt.Printf("已提交 %s（%s @ %s）\n", res.ID, res.Problem, res.Base)
+	fmt.Printf(tr("已提交 %s（%s @ %s）\n"), res.ID, res.Problem, res.Base)
 	if !wait {
 		return
 	}
 	if res.Timeout {
-		fmt.Printf("等待超时（最后状态 %s），提交号 %s，可到 OJ 页面查看\n", res.Last, res.ID)
+		fmt.Printf(tr("等待超时（最后状态 %s），提交号 %s，可到 OJ 页面查看\n"), res.Last, res.ID)
 		otkExit(1)
 	}
 	if res.Stopped {
-		fmt.Printf("已停止等待，提交号 %s\n", res.ID)
+		fmt.Printf(tr("已停止等待，提交号 %s\n"), res.ID)
 		return
 	}
 
@@ -465,7 +465,7 @@ func cmdSubmit(args []string) {
 	}
 	fmt.Printf("%s%s%s", color, verd, reset)
 	if v.MaxScore > 0 || v.Score > 0 {
-		fmt.Printf("  %d/%d分", v.Score, v.MaxScore)
+		fmt.Printf(tr("  %d/%d分"), v.Score, v.MaxScore)
 	}
 	if v.TimeMS > 0 || v.MemoryKB > 0 {
 		fmt.Printf("  %dms %dKB", v.TimeMS, v.MemoryKB)
@@ -505,7 +505,7 @@ func submitSolution(p project, wait bool, onVerdict func(remoteVerdict), stopped
 	}
 
 	if !fileExists(p.sourcePath()) {
-		return res, fmt.Errorf("未找到 %s", p.codeName()+".cpp")
+		return res, fmt.Errorf(tr("未找到 %s"), p.codeName()+".cpp")
 	}
 	props := p.cfg()
 	base := strings.TrimRight(props["remote_base"], "/")
@@ -514,11 +514,11 @@ func submitSolution(p project, wait bool, onVerdict func(remoteVerdict), stopped
 	}
 	probID := props["remote_id"]
 	if probID == "" {
-		return res, fmt.Errorf("该项目未配置远端题号（otk config remote_id <题号>）")
+		return res, fmt.Errorf("%s", tr("该项目未配置远端题号（otk config remote_id <题号>）"))
 	}
 	src, err := os.ReadFile(p.sourcePath())
 	if err != nil {
-		return res, fmt.Errorf("读取源码失败: %v", err)
+		return res, fmt.Errorf(tr("读取源码失败: %v"), err)
 	}
 	res.Base = base
 	res.Problem = probID
@@ -529,7 +529,7 @@ func submitSolution(p project, wait bool, onVerdict func(remoteVerdict), stopped
 		return res, err
 	}
 	if got.ID == "" {
-		return res, fmt.Errorf("远端未返回提交号")
+		return res, fmt.Errorf("%s", tr("远端未返回提交号"))
 	}
 	res.ID = got.ID
 	if !wait {
@@ -537,7 +537,7 @@ func submitSolution(p project, wait bool, onVerdict func(remoteVerdict), stopped
 	}
 
 	deadline := time.Now().Add(120 * time.Second)
-	res.Last = "（无）"
+	res.Last = tr("（无）")
 	for {
 		if stopped() {
 			res.Stopped = true
@@ -584,7 +584,7 @@ func printRemotePoints(points []remoteTestPoint, scored bool) {
 		}
 		fmt.Printf("  #%-*s %s%-4s%s %dms %dKB", width, strconv.Itoa(t.Index), color, verd, reset, t.TimeMS, t.MemoryKB)
 		if scored {
-			fmt.Printf("  %d分", t.Score)
+			fmt.Printf(tr("  %d分"), t.Score)
 		}
 		fmt.Println()
 		if s := strings.TrimSpace(t.Detail); s != "" {

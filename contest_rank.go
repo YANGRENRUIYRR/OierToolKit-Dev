@@ -125,11 +125,11 @@ func rankingCSV(c contest, res contestResult) []byte {
 	rows := buildRanking(c, res)
 	var b strings.Builder
 	b.WriteString("\xEF\xBB\xBF")
-	b.WriteString("名次,选手")
+	b.WriteString(tr("名次,选手"))
 	for _, prob := range res.Problems {
 		b.WriteString("," + prob)
 	}
-	b.WriteString(",总分,满分题数\n")
+	b.WriteString(tr(",总分,满分题数\n"))
 	for _, row := range rows {
 		fmt.Fprintf(&b, "%d,%s", row.Rank, row.Player)
 		for _, s := range row.Scores {
@@ -193,7 +193,7 @@ func (c contest) problemOf(name string) (contestProblem, bool) {
 func validateContest(c contest) []string {
 	var warns []string
 	if len(c.Cfg.Problems) == 0 {
-		warns = append(warns, "比赛里没有任何题目")
+		warns = append(warns, tr("比赛里没有任何题目"))
 	}
 	for _, p := range c.Cfg.Problems {
 		testIDs := map[string]bool{}
@@ -202,11 +202,11 @@ func validateContest(c contest) []string {
 		}
 		for _, st := range p.Subtasks {
 			if len(st.Tests) == 0 {
-				warns = append(warns, p.Name+" 的子任务 "+st.Name+" 没有测试点")
+				warns = append(warns, p.Name+tr("的子任务")+" "+st.Name+" "+tr("没有测试点"))
 			}
 			for _, id := range st.Tests {
 				if !testIDs[id] {
-					warns = append(warns, p.Name+" 的子任务 "+st.Name+" 引用了不存在的测试点 "+id)
+					warns = append(warns, p.Name+tr("的子任务")+" "+st.Name+" "+tr("引用了不存在的测试点")+" "+id)
 				}
 			}
 		}
@@ -216,12 +216,12 @@ func validateContest(c contest) []string {
 				sum += t.Score
 			}
 			if sum == 0 {
-				warns = append(warns, p.Name+" 的测试点总分为 0")
+				warns = append(warns, p.Name+tr(" 的测试点总分为 0"))
 			}
 		}
 	}
 	if len(c.Cfg.Sources) == 0 {
-		warns = append(warns, "没有任何选手提交")
+		warns = append(warns, tr("没有任何选手提交"))
 	}
 	return warns
 }

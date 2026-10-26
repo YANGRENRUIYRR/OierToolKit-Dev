@@ -66,7 +66,7 @@ func prepareChecker(p project, props map[string]string) (string, string, bool) {
 	}
 	// 编译产物放进 .otk，目录不存在时先建好。
 	if err := os.MkdirAll(p.metaDir(), 0755); err != nil {
-		return "", "无法创建 .otk 目录: " + err.Error(), false
+		return "", tr("无法创建 .otk 目录: ") + err.Error(), false
 	}
 	log, ok := compileProjectTo(src, exe, map[string]string{"version": propsOr(props, "version", "c++17")})
 	if !ok {
@@ -84,7 +84,7 @@ func runChecker(exe, inPath, actualPath, expectedPath string) (bool, string) {
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
 	if err := cmd.Start(); err != nil {
-		return false, "checker 启动失败: " + err.Error()
+		return false, tr("checker 启动失败: ") + err.Error()
 	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
@@ -98,12 +98,12 @@ func runChecker(exe, inPath, actualPath, expectedPath string) (bool, string) {
 		case out != "":
 			return false, out
 		default:
-			return false, fmt.Sprintf("checker 退出码 %d", exitCodeOf(err))
+			return false, fmt.Sprintf(tr("checker 退出码 %d"), exitCodeOf(err))
 		}
 	case <-time.After(15 * time.Second):
 		_ = cmd.Process.Kill()
 		<-done
-		return false, "checker 运行超时（15s），请检查 checker.cpp"
+		return false, tr("checker 运行超时（15s），请检查 checker.cpp")
 	}
 }
 
@@ -120,13 +120,13 @@ func exitCodeOf(err error) int {
 func spjRunOnOutput(checker, inPath, stdout, expectedPath string) (bool, string) {
 	tmp, err := os.CreateTemp(filepath.Dir(expectedPath), ".otk-chk-*.out")
 	if err != nil {
-		return false, "无法写出选手输出供 checker 使用: " + err.Error()
+		return false, tr("无法写出选手输出供 checker 使用: ") + err.Error()
 	}
 	actualPath := tmp.Name()
 	if _, err := tmp.WriteString(stdout); err != nil {
 		tmp.Close()
 		_ = os.Remove(actualPath)
-		return false, "无法写出选手输出供 checker 使用: " + err.Error()
+		return false, tr("无法写出选手输出供 checker 使用: ") + err.Error()
 	}
 	tmp.Close()
 	defer os.Remove(actualPath)

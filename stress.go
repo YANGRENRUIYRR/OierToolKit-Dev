@@ -75,18 +75,18 @@ type compileFailure struct {
 }
 
 func (e compileFailure) Error() string {
-	return fmt.Sprintf("%s 编译失败 (CE)", e.Name)
+	return fmt.Sprintf(tr("%s 编译失败 (CE)"), e.Name)
 }
 
 func cmdStress(args []string) {
 	if len(args) > 1 {
-		fatal("用法: otk stress [轮数]")
+		fatal(tr("用法: otk stress [轮数]"))
 	}
 	count := 100
 	if len(args) == 1 {
 		c, err := strconv.Atoi(args[0])
 		if err != nil || c <= 0 {
-			fatal("轮数必须是正整数")
+			fatal(tr("轮数必须是正整数"))
 		}
 		count = c
 	}
@@ -98,7 +98,7 @@ func cmdStress(args []string) {
 
 	for _, pair := range [][2]string{{projCpp, p.codeName() + ".cpp"}, {genCpp, "gen.cpp"}, {bruteCpp, "brute.cpp"}} {
 		if !fileExists(pair[0]) {
-			fatal("未找到 %s", pair[1])
+			fatal(tr("未找到 %s"), pair[1])
 		}
 	}
 
@@ -110,9 +110,9 @@ func cmdStress(args []string) {
 	res, err := runStress(p, count, false, func(ev stressEvent) {
 		switch ev.Stage {
 		case stressCompile:
-			fmt.Printf("编译 %s ... %sok%s\n", ev.Name, green, reset)
+			fmt.Printf(tr("编译 %s ... %sok%s\n"), ev.Name, green, reset)
 		case stressStart:
-			fmt.Printf("对拍 %d 轮... (Ctrl+C 中断)\n", ev.Total)
+			fmt.Printf(tr("对拍 %d 轮... (Ctrl+C 中断)\n"), ev.Total)
 		case stressRound:
 			fmt.Printf("\r  %d/%d", ev.Round, ev.Total)
 		}
@@ -138,20 +138,20 @@ func cmdStress(args []string) {
 
 	fmt.Println()
 	if res.SlowRound > 0 {
-		fmt.Printf("  耗时统计: gen %.1fs / brute %.1fs / 程序 %.1fs  最慢第 %d 轮（%dms）\n",
+		fmt.Printf(tr("  耗时统计: gen %.1fs / brute %.1fs / 程序 %.1fs  最慢第 %d 轮（%dms）\n"),
 			secs(res.GenMs), secs(res.BruteMs), secs(res.ProjMs), res.SlowRound, res.SlowRoundMs)
 	}
 	switch {
 	case res.Stopped:
-		fmt.Println(yellow + "对拍被中断" + reset)
+		fmt.Println(yellow + tr("对拍被中断") + reset)
 		otkExit(130)
 	case res.FailRound > 0:
-		fmt.Printf("%s第 %d 轮 WA%s（共发现 %d 组反例，已保存到 %s）\n", red, res.FailRound, reset, res.Counterexamples, res.StressDir)
-		fmt.Printf("  已保存测试数据至 %s\n", res.StressDir)
+		fmt.Printf(tr("%s第 %d 轮 WA%s（共发现 %d 组反例，已保存到 %s）\n"), red, res.FailRound, reset, res.Counterexamples, res.StressDir)
+		fmt.Printf(tr("  已保存测试数据至 %s\n"), res.StressDir)
 		printDiff(res.Expected, res.Actual)
 		otkExit(1)
 	default:
-		fmt.Printf("%s全部通过 (%d/%d)%s\n", green, res.Total, res.Total, reset)
+		fmt.Printf(tr("%s全部通过 (%d/%d)%s\n"), green, res.Total, res.Total, reset)
 	}
 }
 
@@ -218,7 +218,7 @@ func runStress(p project, count int, keepGoing bool, emit func(stressEvent), sto
 			return res, nil
 		}
 		if err != nil {
-			return res, fmt.Errorf("第 %d 轮: gen 运行时错误 (RE)", i)
+			return res, fmt.Errorf(tr("第 %d 轮: gen 运行时错误 (RE)"), i)
 		}
 		start = time.Now()
 		bruteOut, abort, err := execCmdCapture(bruteExe, inputData, p.Dir, stopped, nil)
@@ -228,7 +228,7 @@ func runStress(p project, count int, keepGoing bool, emit func(stressEvent), sto
 			return res, nil
 		}
 		if err != nil {
-			return res, fmt.Errorf("第 %d 轮: brute 运行时错误 (RE)", i)
+			return res, fmt.Errorf(tr("第 %d 轮: brute 运行时错误 (RE)"), i)
 		}
 		expectedOut := normalizeOutput(bruteOut)
 
@@ -240,7 +240,7 @@ func runStress(p project, count int, keepGoing bool, emit func(stressEvent), sto
 			return res, nil
 		}
 		if err != nil {
-			return res, fmt.Errorf("第 %d 轮: 项目程序运行时错误 (RE)", i)
+			return res, fmt.Errorf(tr("第 %d 轮: 项目程序运行时错误 (RE)"), i)
 		}
 		userOut := normalizeOutput(projOut)
 

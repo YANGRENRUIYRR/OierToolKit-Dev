@@ -172,8 +172,8 @@ func main() {
 	case "version":
 		fmt.Printf("OierToolKit %s\n", otkVersion)
 	default:
-		fmt.Fprintf(os.Stderr, "%sotk: 未知命令 '%s'%s\n", red, args[0], reset)
-		fmt.Fprintln(os.Stderr, "运行 'otk help' 查看帮助。")
+		fmt.Fprintf(os.Stderr, "%s"+tr("otk: 未知命令 '%s'")+"%s\n", red, args[0], reset)
+		fmt.Fprintln(os.Stderr, tr("运行 'otk help' 查看帮助。"))
 		otkExit(1)
 	}
 }
@@ -193,19 +193,19 @@ func fatal(format string, a ...any) {
 
 func requireNoArgs(args []string, cmd string) {
 	if len(args) > 0 {
-		fatal("otk %s 不接受参数", cmd)
+		fatal(tr("otk %s 不接受参数"), cmd)
 	}
 }
 
 func initBaseDir() {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "无法获取用户主目录")
+		fmt.Fprintln(os.Stderr, tr("无法获取用户主目录"))
 		otkExit(1)
 	}
 	baseDir = filepath.Join(home, ".otkprofile")
 	if err := os.MkdirAll(baseDir, 0755); err != nil {
-		fmt.Fprintf(os.Stderr, "无法创建目录 %s: %v\n", baseDir, err)
+		fmt.Fprintf(os.Stderr, tr("无法创建目录 %s: %v")+"\n", baseDir, err)
 		otkExit(1)
 	}
 }
@@ -229,19 +229,19 @@ func initColors() {
 
 func cmdShow(args []string) {
 	if len(args) != 1 {
-		fatal("用法: otk show w（担保）或 otk show c（许可证）")
+		fatal(tr("用法: otk show w（担保）或 otk show c（许可证）"))
 	}
 	switch args[0] {
 	case "w":
-		fmt.Println("OierToolKit 版权所有 (C) 2026 魇珩Gr3yPh4ntom")
-		fmt.Println("本程序不提供任何担保，甚至不保证适用于特定目的。")
-		fmt.Println("详情请参阅 GNU 通用公共许可证。")
+		fmt.Println(tr("OierToolKit 版权所有 (C) 2026 魇珩Gr3yPh4ntom"))
+		fmt.Println(tr("本程序不提供任何担保，甚至不保证适用于特定目的。"))
+		fmt.Println(tr("详情请参阅 GNU 通用公共许可证。"))
 	case "c":
-		fmt.Println("这是一个自由软件，欢迎您在 GPLv3 协议下重新分发它。")
-		fmt.Println("在特定条件下，您可以修改并共享它。")
-		fmt.Println("完整许可证全文请查看项目中的 LICENSE 文件：https://github.com/Gr3yPh/OierToolKit/blob/main/LICENSE。")
+		fmt.Println(tr("这是一个自由软件，欢迎您在 GPLv3 协议下重新分发它。"))
+		fmt.Println(tr("在特定条件下，您可以修改并共享它。"))
+		fmt.Println(tr("完整许可证全文请查看项目中的 LICENSE 文件：https://github.com/Gr3yPh/OierToolKit/blob/main/LICENSE。"))
 	default:
-		fatal("未知的 show 参数 '%s'，请输入 'otk show w' 或 'otk show c'", args[0])
+		fatal(tr("未知的 show 参数 '%s'，请输入 'otk show w' 或 'otk show c'"), args[0])
 	}
 }
 
@@ -253,13 +253,13 @@ func cmdCd(args []string) {
 	case 0:
 		p, ok := findProject()
 		if !ok {
-			fatal("当前目录不属于任何项目")
+			fatal(tr("当前目录不属于任何项目"))
 		}
 		dir = p.Dir
 	case 1:
 		dir = resolveRegistry(args[0])
 	default:
-		fatal("用法: otk cd [名称]")
+		fatal(tr("用法: otk cd [名称]"))
 	}
 
 	shell := os.Getenv("SHELL")
@@ -278,7 +278,7 @@ func cmdCd(args []string) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
-		fatal("无法启动 shell (%s): %v", shell, err)
+		fatal(tr("无法启动 shell (%s): %v"), shell, err)
 	}
 	_ = cmd.Wait() // 用户主动 exit 的退出码无需处理
 }

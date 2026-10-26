@@ -71,29 +71,29 @@ func newSamplesPage(pg *projectPage) *samplesPage {
 	syncBtn := widget.NewButtonWithIcon(tr("同步"), theme.ViewRefreshIcon(), func() {
 		res := syncSamples(s.pg.p, true)
 		s.reload()
-		msg := "样例库已是最新"
+		msg := tr("样例库已是最新")
 		if len(res.added) > 0 || len(res.removed) > 0 {
-			msg = fmt.Sprintf("同步完成：新增 %d，移除 %d", len(res.added), len(res.removed))
+			msg = fmt.Sprintf(tr("同步完成：新增 %d，移除 %d"), len(res.added), len(res.removed))
 		}
 		s.pg.g.setStatus(msg)
 	})
 
-	sideTop := container.NewPadded(section("样例"))
+	sideTop := container.NewPadded(section(tr("样例")))
 	sideBottom := container.NewVBox(widget.NewSeparator(), container.NewPadded(container.NewHBox(addBtn, delBtn, syncBtn, importBtn)))
 	side := container.NewBorder(sideTop, sideBottom, nil, nil, s.list)
 
-	s.title = strong("未选择样例")
-	s.note = caption("切换样例或刷新时自动保存修改")
+	s.title = strong(tr("未选择样例"))
+	s.note = caption(tr("切换样例或刷新时自动保存修改"))
 	s.inBox = widget.NewMultiLineEntry()
-	s.inBox.SetPlaceHolder("输入数据（.in）")
-	s.inBox.OnChanged = func(string) { s.note.SetText("有未保存的修改") }
+	s.inBox.SetPlaceHolder(tr("输入数据（.in）"))
+	s.inBox.OnChanged = func(string) { s.note.SetText(tr("有未保存的修改")) }
 	s.outBox = widget.NewMultiLineEntry()
-	s.outBox.SetPlaceHolder("期望输出（.out / .ans）")
-	s.outBox.OnChanged = func(string) { s.note.SetText("有未保存的修改") }
+	s.outBox.SetPlaceHolder(tr("期望输出（.out / .ans）"))
+	s.outBox.OnChanged = func(string) { s.note.SetText(tr("有未保存的修改")) }
 
 	saveBtn := widget.NewButtonWithIcon(tr("保存样例"), theme.DocumentSaveIcon(), s.save)
-	inPane := container.NewBorder(caption("输入 .in"), nil, nil, nil, s.inBox)
-	outPane := container.NewBorder(caption("期望输出"), nil, nil, nil, s.outBox)
+	inPane := container.NewBorder(caption(tr("输入 .in")), nil, nil, nil, s.inBox)
+	outPane := container.NewBorder(caption(tr("期望输出")), nil, nil, nil, s.outBox)
 
 	right := container.NewBorder(
 		container.NewVBox(container.NewPadded(container.NewBorder(nil, nil, s.title, container.NewHBox(saveBtn), s.note)), widget.NewSeparator()),
@@ -119,10 +119,10 @@ func (s *samplesPage) reload() {
 
 	if len(s.ids) == 0 {
 		s.selected = ""
-		s.title.SetText("还没有样例")
+		s.title.SetText(tr("还没有样例"))
 		s.inBox.SetText("")
 		s.outBox.SetText("")
-		s.note.SetText("在项目目录里放入成对的 .in 与 .out/.ans 后点“同步”")
+		s.note.SetText(tr("在项目目录里放入成对的 .in 与 .out/.ans 后点“同步”"))
 		return
 	}
 
@@ -137,7 +137,7 @@ func (s *samplesPage) reload() {
 
 // selectSample 切换当前编辑的样例，切换前自动保存上一组修改。
 func (s *samplesPage) selectSample(id string) {
-	if s.selected == id && s.title.Text != "未选择样例" {
+	if s.selected == id && s.title.Text != tr("未选择样例") {
 		return
 	}
 	if !s.loading {
@@ -158,9 +158,9 @@ func (s *samplesPage) loadSample(id string) {
 	s.title.SetText("#" + id)
 	switch {
 	case err != nil:
-		s.note.SetText(fmt.Sprintf("读取不完整：%v", err))
+		s.note.SetText(fmt.Sprintf(tr("读取不完整：%v"), err))
 	default:
-		s.note.SetText(fmt.Sprintf("输入 %s · 输出 %s", humanSize(len(input)), humanSize(len(output))))
+		s.note.SetText(fmt.Sprintf(tr("输入 %s · 输出 %s"), humanSize(len(input)), humanSize(len(output))))
 	}
 }
 
@@ -173,22 +173,22 @@ func (s *samplesPage) save() {
 		s.pg.g.showError(err)
 		return
 	}
-	s.note.SetText(fmt.Sprintf("已保存 · 输入 %s · 输出 %s",
+	s.note.SetText(fmt.Sprintf(tr("已保存 · 输入 %s · 输出 %s"),
 		humanSize(len(s.inBox.Text)), humanSize(len(s.outBox.Text))))
 }
 
 // addDialog 新建一组空样例。
 func (s *samplesPage) addDialog() {
 	entry := widget.NewEntry()
-	entry.SetPlaceHolder("编号，例如 3 或 sample3")
+	entry.SetPlaceHolder(tr("编号，例如 3 或 sample3"))
 	entry.SetText(nextSampleID(s.ids))
 
 	content := container.NewVBox(
-		widget.NewForm(widget.NewFormItem("样例编号", entry)),
-		caption("会创建 <编号>.in 与 <编号>.out 两个文件。"),
+		widget.NewForm(widget.NewFormItem(tr("样例编号"), entry)),
+		caption(tr("会创建 <编号>.in 与 <编号>.out 两个文件。")),
 	)
 
-	dialog.ShowCustomConfirm("新建样例", "创建", "取消", content, func(ok bool) {
+	dialog.ShowCustomConfirm(tr("新建样例"), tr("创建"), tr("取消"), content, func(ok bool) {
 		if !ok {
 			return
 		}
@@ -202,46 +202,46 @@ func (s *samplesPage) addDialog() {
 		}
 		s.selected = id
 		s.reload()
-		s.pg.g.setStatus("已新建样例 #" + id)
+		s.pg.g.setStatus(fmt.Sprintf(tr("已新建样例 #%s"), id))
 	}, s.pg.g.win)
 }
 
 // importDialog 从剪贴板粘贴输入与期望输出，直接入库为样例。
 func (s *samplesPage) importDialog() {
 	idEntry := widget.NewEntry()
-	idEntry.SetPlaceHolder("编号，例如 3 或 sample3")
+	idEntry.SetPlaceHolder(tr("编号，例如 3 或 sample3"))
 	idEntry.SetText(nextSampleID(s.ids))
 
 	inEntry := widget.NewMultiLineEntry()
-	inEntry.SetPlaceHolder("点击右侧按钮粘贴输入数据")
+	inEntry.SetPlaceHolder(tr("点击右侧按钮粘贴输入数据"))
 	outEntry := widget.NewMultiLineEntry()
-	outEntry.SetPlaceHolder("点击右侧按钮粘贴期望输出")
+	outEntry.SetPlaceHolder(tr("点击右侧按钮粘贴期望输出"))
 
 	clipText := func() string {
 		return strings.ReplaceAll(s.pg.g.win.Clipboard().Content(), "\r\n", "\n")
 	}
 
 	form := widget.NewForm(
-		widget.NewFormItem("样例编号", idEntry),
-		widget.NewFormItem("输入 .in", container.NewBorder(nil, nil, nil,
-			widget.NewButtonWithIcon("粘贴", theme.ContentPasteIcon(), func() { inEntry.SetText(clipText()) }), inEntry)),
-		widget.NewFormItem("期望输出", container.NewBorder(nil, nil, nil,
-			widget.NewButtonWithIcon("粘贴", theme.ContentPasteIcon(), func() { outEntry.SetText(clipText()) }), outEntry)),
+		widget.NewFormItem(tr("样例编号"), idEntry),
+		widget.NewFormItem(tr("输入 .in"), container.NewBorder(nil, nil, nil,
+			widget.NewButtonWithIcon(tr("粘贴"), theme.ContentPasteIcon(), func() { inEntry.SetText(clipText()) }), inEntry)),
+		widget.NewFormItem(tr("期望输出"), container.NewBorder(nil, nil, nil,
+			widget.NewButtonWithIcon(tr("粘贴"), theme.ContentPasteIcon(), func() { outEntry.SetText(clipText()) }), outEntry)),
 	)
 
 	content := container.NewVBox(
 		form,
-		caption("可以从题面选中样例复制后逐项粘贴，保存后即可在评测页使用。"),
+		caption(tr("可以从题面选中样例复制后逐项粘贴，保存后即可在评测页使用。")),
 	)
 	content.Resize(fyne.NewSize(460, 320))
 
-	dialog.ShowCustomConfirm("从剪贴板导入样例", "保存", "取消", content, func(ok bool) {
+	dialog.ShowCustomConfirm(tr("从剪贴板导入样例"), tr("保存"), tr("取消"), content, func(ok bool) {
 		if !ok {
 			return
 		}
 		id := strings.TrimSpace(idEntry.Text)
 		if id == "" {
-			s.pg.g.showError(fmt.Errorf("样例编号不能为空"))
+			s.pg.g.showError(fmt.Errorf("%s", tr("样例编号不能为空")))
 			return
 		}
 		if err := writeSample(s.pg.p, id, inEntry.Text, outEntry.Text); err != nil {
@@ -250,7 +250,7 @@ func (s *samplesPage) importDialog() {
 		}
 		s.selected = id
 		s.reload()
-		s.pg.g.setStatus("已从剪贴板导入样例 #" + id)
+		s.pg.g.setStatus(fmt.Sprintf(tr("已从剪贴板导入样例 #%s"), id))
 	}, s.pg.g.win)
 }
 
@@ -269,11 +269,11 @@ func nextSampleID(ids []string) string {
 // deleteSelected 删除当前样例的全部文件。
 func (s *samplesPage) deleteSelected() {
 	if s.selected == "" {
-		s.pg.g.setStatus("先选择一个样例")
+		s.pg.g.setStatus(tr("先选择一个样例"))
 		return
 	}
 	id := s.selected
-	dialog.ShowConfirm("删除样例", "将删除 #"+id+" 的 .in 与 .out/.ans 文件，确定吗？", func(ok bool) {
+	dialog.ShowConfirm(tr("删除样例"), fmt.Sprintf(tr("将删除 #%s 的 .in 与 .out/.ans 文件，确定吗？"), id), func(ok bool) {
 		if !ok {
 			return
 		}
@@ -283,7 +283,7 @@ func (s *samplesPage) deleteSelected() {
 		}
 		s.selected = ""
 		s.reload()
-		s.pg.g.setStatus("已删除样例 #" + id)
+		s.pg.g.setStatus(fmt.Sprintf(tr("已删除样例 #%s"), id))
 	}, s.pg.g.win)
 }
 

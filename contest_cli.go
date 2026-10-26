@@ -76,23 +76,23 @@ func printContestHelp() {
 // cmdContestAdd 导入比赛。
 func cmdContestAdd(args []string) {
 	if len(args) == 0 || len(args) > 2 {
-		fatal("用法: otk contest add <上传目录> [名称]")
+		fatal(tr("用法: otk contest add <上传目录> [名称]"))
 	}
 	name := ""
 	if len(args) == 2 {
 		name = args[1]
 	}
-	fmt.Printf("正在导入 %s ...\n", args[0])
+	fmt.Printf(tr("正在导入 %s ...")+"\n", args[0])
 	c, err := importContest(args[0], name)
 	if err != nil {
 		fatal("%v", err)
 	}
 
-	fmt.Printf("%s已导入 %s%s（%s）\n", green, c.Cfg.Name, reset, c.Dir)
-	fmt.Printf("  %d 道题 · %d 位选手 · %d 份提交\n",
+	fmt.Printf("%s"+tr("已导入 %s")+"%s（%s）\n", green, c.Cfg.Name, reset, c.Dir)
+	fmt.Printf("  "+tr("%d 道题 · %d 位选手 · %d 份提交")+"\n",
 		len(c.Cfg.Problems), len(c.Cfg.Players), len(c.Cfg.Sources))
 	for _, p := range c.Cfg.Problems {
-		fmt.Printf("  · %s：%d 个测试点，满分 %.0f\n", p.Name, len(p.Tests), fullScoreOf(c, p.Name))
+		fmt.Printf("  · "+tr("%s：%d 个测试点，满分 %.0f")+"\n", p.Name, len(p.Tests), fullScoreOf(c, p.Name))
 	}
 	for _, w := range validateContest(c) {
 		fmt.Printf("%s! %s%s\n", yellow, w, reset)
@@ -103,7 +103,7 @@ func cmdContestAdd(args []string) {
 func cmdContestList() {
 	list := contestEntries()
 	if len(list) == 0 {
-		fmt.Println("还没有导入任何模拟赛。用 otk contest add <上传目录> 导入。")
+		fmt.Println(tr("还没有导入任何模拟赛。用 otk contest add <上传目录> 导入。"))
 		return
 	}
 	for _, c := range list {
@@ -111,11 +111,11 @@ func cmdContestList() {
 		if fileExists(c.resultPath()) {
 			marked = green + "*" + reset
 		}
-		fmt.Printf("%s %s%s%s  %d 题 · %d 位选手 · 导入于 %s\n",
+		fmt.Printf("%s %s%s%s  "+tr("%d 题 · %d 位选手 · 导入于 %s")+"\n",
 			marked, cyan, c.Cfg.Name, reset,
 			len(c.Cfg.Problems), len(c.Cfg.Players), c.Cfg.ImportedAt)
 	}
-	fmt.Printf("\n%s*%s 表示已评测过\n", green, reset)
+	fmt.Printf("\n%s*%s "+tr("表示已评测过")+"\n", green, reset)
 }
 
 // cmdContestJudge 评测整场比赛。
@@ -123,7 +123,7 @@ func cmdContestJudge(args []string) {
 	name := ""
 	for _, a := range args {
 		if strings.HasPrefix(a, "-") {
-			fatal("用法: otk contest judge [名称]")
+			fatal(tr("用法: otk contest judge [名称]"))
 		}
 		name = a
 	}
@@ -141,7 +141,7 @@ func cmdContestJudge(args []string) {
 		stopped.Store(true)
 	}()
 
-	fmt.Printf("评测 %s（%d 道题 · %d 份提交 · %d 并发）\n",
+	fmt.Printf(tr("评测 %s（%d 道题 · %d 份提交 · %d 并发）")+"\n",
 		c.Cfg.Name, len(c.Cfg.Problems), len(c.Cfg.Sources), contestParallelism())
 
 	var mu = make(chan struct{}, 1) // 串行化输出，避免多行交错
@@ -157,14 +157,14 @@ func cmdContestJudge(args []string) {
 		fatal("%v", err)
 	}
 	if stopped.Load() {
-		fmt.Println(yellow + "评测被中断，结果未保存" + reset)
+		fmt.Println(yellow + tr("评测被中断，结果未保存") + reset)
 		otkExit(130)
 	}
 
 	if err := saveContestResult(c, res); err != nil {
-		fatal("保存结果失败: %v", err)
+		fatal(tr("保存结果失败: %v"), err)
 	}
-	fmt.Printf("%s评测完成，结果已保存%s\n\n", green, reset)
+	fmt.Printf("%s"+tr("评测完成，结果已保存")+"%s\n\n", green, reset)
 	printRanking(c, res)
 }
 
@@ -177,12 +177,12 @@ func cmdContestRank(args []string) {
 		switch {
 		case a == "-w" || a == "--write" || a == "-o" || a == "--output":
 			if i+1 >= len(args) {
-				fatal("用法: otk contest rank [名称] [-w 文件]")
+				fatal(tr("用法: otk contest rank [名称] [-w 文件]"))
 			}
 			outPath = args[i+1]
 			i++
 		case strings.HasPrefix(a, "-"):
-			fatal("用法: otk contest rank [名称] [-w 文件]")
+			fatal(tr("用法: otk contest rank [名称] [-w 文件]"))
 		default:
 			name = a
 		}
@@ -194,32 +194,32 @@ func cmdContestRank(args []string) {
 	}
 	res, ok := loadContestResult(c)
 	if !ok {
-		fatal("%s 还没有评测结果，先运行 otk contest judge %s", c.Cfg.Name, c.Cfg.Name)
+		fatal(tr("%s 还没有评测结果，先运行 otk contest judge %s"), c.Cfg.Name, c.Cfg.Name)
 	}
 
 	printRanking(c, res)
 	if outPath != "" {
 		path, err := exportContestHTML(c, res, outPath)
 		if err != nil {
-			fatal("导出失败: %v", err)
+			fatal(tr("导出失败: %v"), err)
 		}
-		fmt.Printf("\n%s已导出榜单：%s%s\n", green, path, reset)
+		fmt.Printf("\n%s"+tr("已导出榜单：")+"%s%s\n", green, path, reset)
 	}
 }
 
 // cmdContestRemove 删除比赛。
 func cmdContestRemove(args []string) {
 	if len(args) != 1 {
-		fatal("用法: otk contest rm <名称>")
+		fatal(tr("用法: otk contest rm <名称>"))
 	}
 	c, err := resolveContest(args[0])
 	if err != nil {
 		fatal("%v", err)
 	}
 	if err := os.RemoveAll(c.Dir); err != nil {
-		fatal("删除失败: %v", err)
+		fatal(tr("删除失败: %v"), err)
 	}
-	fmt.Printf("已删除 %s%s%s\n", cyan, c.Cfg.Name, reset)
+	fmt.Printf(tr("已删除 %s")+"%s%s\n", cyan, c.Cfg.Name, reset)
 }
 
 // resolveContest 解析比赛名：留空时仅当只有一场比赛才自动选中。
@@ -230,7 +230,7 @@ func resolveContest(name string) (contest, error) {
 	list := contestEntries()
 	switch len(list) {
 	case 0:
-		return contest{}, fmt.Errorf("还没有导入任何模拟赛，用 otk contest add <上传目录>")
+		return contest{}, fmt.Errorf("%s", tr("还没有导入任何模拟赛，用 otk contest add <上传目录>"))
 	case 1:
 		return list[0], nil
 	default:
@@ -238,7 +238,7 @@ func resolveContest(name string) (contest, error) {
 		for _, c := range list {
 			names = append(names, c.Cfg.Name)
 		}
-		return contest{}, fmt.Errorf("有多场比赛，请指定名称：%s", strings.Join(names, " / "))
+		return contest{}, fmt.Errorf(tr("有多场比赛，请指定名称：%s"), strings.Join(names, " / "))
 	}
 }
 
@@ -246,7 +246,7 @@ func resolveContest(name string) (contest, error) {
 func printRanking(c contest, res contestResult) {
 	rows := buildRanking(c, res)
 	if len(rows) == 0 {
-		fmt.Println("榜单为空")
+		fmt.Println(tr("榜单为空"))
 		return
 	}
 
@@ -262,11 +262,11 @@ func printRanking(c contest, res contestResult) {
 	}
 
 	// 表头
-	fmt.Printf("%-4s %-*s", "名次", nameWidth+2, "选手")
+	fmt.Printf("%-4s %-*s", tr("名次"), nameWidth+2, tr("选手"))
 	for i, p := range res.Problems {
 		fmt.Printf(" %*s", probWidths[i], p)
 	}
-	fmt.Printf(" %6s\n", "总分")
+	fmt.Printf(" %6s\n", tr("总分"))
 
 	for _, r := range rows {
 		fmt.Printf("%-4d %-*s", r.Rank, nameWidth+2, r.Player)
@@ -283,7 +283,7 @@ func printRanking(c contest, res contestResult) {
 		fmt.Printf(" %s%6s%s\n", cyan, fmtScore(r.Total), reset)
 	}
 
-	fmt.Printf("\n%d 位选手 · %d 道题 · 满分 %.0f 分\n", len(rows), len(res.Problems), totalFullScore(c))
+	fmt.Printf("\n"+tr("%d 位选手 · %d 道题 · 满分 %.0f 分")+"\n", len(rows), len(res.Problems), totalFullScore(c))
 }
 
 // displayWidth 粗略估算终端显示宽度：CJK 字符按 2 列。

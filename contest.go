@@ -146,10 +146,10 @@ func loadContest(dir string) (contest, error) {
 	c := contest{Dir: dir}
 	data, err := os.ReadFile(filepath.Join(dir, contestConfigName))
 	if err != nil {
-		return c, fmt.Errorf("读取比赛配置失败: %v", err)
+		return c, fmt.Errorf(tr("读取比赛配置失败: %v"), err)
 	}
 	if err := json.Unmarshal(data, &c.Cfg); err != nil {
-		return c, fmt.Errorf("比赛配置格式错误: %v", err)
+		return c, fmt.Errorf(tr("比赛配置格式错误: %v"), err)
 	}
 	return c, nil
 }
@@ -186,15 +186,15 @@ func sanitizeFileName(name string) string {
 func importContest(srcDir, name string) (contest, error) {
 	info, err := os.Stat(srcDir)
 	if err != nil || !info.IsDir() {
-		return contest{}, fmt.Errorf("上传目录不存在: %s", srcDir)
+		return contest{}, fmt.Errorf(tr("上传目录不存在: %s"), srcDir)
 	}
 	dataDir := filepath.Join(srcDir, "data")
 	srcSub := filepath.Join(srcDir, "source")
 	if !dirExists(dataDir) {
-		return contest{}, fmt.Errorf("上传目录里没有 data/ 文件夹: %s", dataDir)
+		return contest{}, fmt.Errorf(tr("上传目录里没有 data/ 文件夹: %s"), dataDir)
 	}
 	if !dirExists(srcSub) {
-		return contest{}, fmt.Errorf("上传目录里没有 source/ 文件夹: %s", srcSub)
+		return contest{}, fmt.Errorf(tr("上传目录里没有 source/ 文件夹: %s"), srcSub)
 	}
 
 	problems, err := scanContestProblems(dataDir)
@@ -202,7 +202,7 @@ func importContest(srcDir, name string) (contest, error) {
 		return contest{}, err
 	}
 	if len(problems) == 0 {
-		return contest{}, fmt.Errorf("data/ 里没有任何题目（应形如 data/<题目名>/*.in）")
+		return contest{}, fmt.Errorf("%s", tr("data/ 里没有任何题目（应形如 data/<题目名>/*.in）"))
 	}
 
 	sources, players, err := scanContestSources(srcSub, problems)
@@ -210,7 +210,7 @@ func importContest(srcDir, name string) (contest, error) {
 		return contest{}, err
 	}
 	if len(sources) == 0 {
-		return contest{}, fmt.Errorf("source/ 里没有任何选手提交（应形如 source/<选手名>/<题目名>.cpp）")
+		return contest{}, fmt.Errorf("%s", tr("source/ 里没有任何选手提交（应形如 source/<选手名>/<题目名>.cpp）"))
 	}
 
 	if name == "" {
@@ -219,20 +219,20 @@ func importContest(srcDir, name string) (contest, error) {
 	id := contestID(name)
 	dest := filepath.Join(contestsDir(), id)
 	if dirExists(dest) {
-		return contest{}, fmt.Errorf("已存在同名模拟赛 %s（%s）", name, dest)
+		return contest{}, fmt.Errorf(tr("已存在同名模拟赛 %s（%s）"), name, dest)
 	}
 
 	// 先复制数据与源码，再写配置：中途失败不会留下半场"可用"的比赛。
 	if err := os.MkdirAll(dest, 0755); err != nil {
-		return contest{}, fmt.Errorf("创建比赛目录失败: %v", err)
+		return contest{}, fmt.Errorf(tr("创建比赛目录失败: %v"), err)
 	}
 	if err := copyDir(filepath.Join(dataDir), filepath.Join(dest, "data")); err != nil {
 		_ = os.RemoveAll(dest)
-		return contest{}, fmt.Errorf("复制数据失败: %v", err)
+		return contest{}, fmt.Errorf(tr("复制数据失败: %v"), err)
 	}
 	if err := copyDir(srcSub, filepath.Join(dest, "source")); err != nil {
 		_ = os.RemoveAll(dest)
-		return contest{}, fmt.Errorf("复制源码失败: %v", err)
+		return contest{}, fmt.Errorf(tr("复制源码失败: %v"), err)
 	}
 
 	// 源码路径改为相对比赛目录，便于整个比赛目录搬走。
@@ -256,7 +256,7 @@ func importContest(srcDir, name string) (contest, error) {
 	}
 	if err := c.save(); err != nil {
 		_ = os.RemoveAll(dest)
-		return contest{}, fmt.Errorf("写入比赛配置失败: %v", err)
+		return contest{}, fmt.Errorf(tr("写入比赛配置失败: %v"), err)
 	}
 	return c, nil
 }
@@ -265,7 +265,7 @@ func importContest(srcDir, name string) (contest, error) {
 func scanContestProblems(dataDir string) ([]contestProblem, error) {
 	entries, err := os.ReadDir(dataDir)
 	if err != nil {
-		return nil, fmt.Errorf("读取 data/ 失败: %v", err)
+		return nil, fmt.Errorf(tr("读取 data/ 失败: %v"), err)
 	}
 
 	var problems []contestProblem
@@ -297,7 +297,7 @@ func scanContestProblems(dataDir string) ([]contestProblem, error) {
 func scanTestPoints(dir string) ([]testPoint, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, fmt.Errorf("读取 %s 失败: %v", dir, err)
+		return nil, fmt.Errorf(tr("读取 %s 失败: %v"), dir, err)
 	}
 	hasOut := map[string]bool{}
 	hasIn := map[string]bool{}
@@ -339,7 +339,7 @@ func scanContestSources(srcDir string, problems []contestProblem) ([]contestSour
 
 	entries, err := os.ReadDir(srcDir)
 	if err != nil {
-		return nil, nil, fmt.Errorf("读取 source/ 失败: %v", err)
+		return nil, nil, fmt.Errorf(tr("读取 source/ 失败: %v"), err)
 	}
 
 	var sources []contestSource

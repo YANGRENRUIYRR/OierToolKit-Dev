@@ -144,10 +144,10 @@ func syncSamples(p project, write bool) refreshResult {
 // printPairWarnings 提示不成对的文件。p 用于分辨孤立的期望输出是 .out 还是 .ans。
 func printPairWarnings(p project, res refreshResult) {
 	for _, id := range res.missingOut {
-		fmt.Printf("! %s.in 缺少 .out 或 .ans\n", id)
+		fmt.Printf(tr("! %s.in 缺少 .out 或 .ans\n"), id)
 	}
 	for _, id := range res.missingIn {
-		fmt.Printf("! %s 缺少 .in\n", id+expectedExt(p.Dir, id))
+		fmt.Printf(tr("! %s 缺少 .in\n"), id+expectedExt(p.Dir, id))
 	}
 }
 
@@ -169,7 +169,7 @@ func cmdSamples() {
 	p := requireProject()
 	index := readIndex(p)
 	if len(index) == 0 {
-		fmt.Println("（无样例，放入 .in 与 .out/.ans 后运行 otk refresh）")
+		fmt.Println(tr("（无样例，放入 .in 与 .out/.ans 后运行 otk refresh）"))
 		return
 	}
 	width := 3
@@ -188,7 +188,7 @@ func cmdSamples() {
 func sizeStr(dir, id, ext string) string {
 	fi, err := os.Stat(filepath.Join(dir, id+ext))
 	if err != nil {
-		return "缺失"
+		return tr("缺失")
 	}
 	return fmt.Sprintf("%dB", fi.Size())
 }
@@ -223,11 +223,11 @@ func readSample(p project, id string) (input, output string, err error) {
 	outPath := sampleFilePath(p, id, "out")
 	in, err := os.ReadFile(inPath)
 	if err != nil {
-		return "", "", fmt.Errorf("读取 %s.in 失败: %v", id, err)
+		return "", "", fmt.Errorf(tr("读取 %s.in 失败: %v"), id, err)
 	}
 	out, err := os.ReadFile(outPath)
 	if err != nil {
-		return "", "", fmt.Errorf("读取样例输出失败: %v", err)
+		return "", "", fmt.Errorf(tr("读取样例输出失败: %v"), err)
 	}
 	return string(in), string(out), nil
 }
@@ -236,7 +236,7 @@ func readSample(p project, id string) (input, output string, err error) {
 func writeSample(p project, id, input, output string) error {
 	id = strings.TrimSpace(id)
 	if id == "" || id == "." || id == ".." || strings.ContainsAny(id, `/\`) {
-		return fmt.Errorf("非法的样例编号: %q", id)
+		return fmt.Errorf(tr("非法的样例编号: %q"), id)
 	}
 
 	ext := ".out"

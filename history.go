@@ -97,7 +97,7 @@ func historyJSON(entries []historyEntry) ([]byte, error) {
 // historyCSV 把历史记录导出为 CSV 文本（最慢点耗时以毫秒计）。
 func historyCSV(entries []historyEntry) []byte {
 	var b strings.Builder
-	b.WriteString("时间,通过,总数,时限(s),内存限制(MB),最慢点(ms)\n")
+	b.WriteString(tr("时间,通过,总数,时限(s),内存限制(MB),最慢点(ms)\n"))
 	for _, e := range entries {
 		worstStr := ""
 		if len(e.Points) > 0 {
@@ -118,25 +118,25 @@ func cmdHistory(args []string) {
 		switch args[i] {
 		case "-e", "--export":
 			if i+1 >= len(args) {
-				fatal("-e 需要指定格式 json 或 csv")
+				fatal(tr("-e 需要指定格式 json 或 csv"))
 			}
 			i++
 			exportFmt = strings.ToLower(args[i])
 			if exportFmt != "json" && exportFmt != "csv" {
-				fatal("导出格式只支持 json 或 csv")
+				fatal(tr("导出格式只支持 json 或 csv"))
 			}
 		default:
 			rest = append(rest, args[i])
 		}
 	}
 	if len(rest) > 1 {
-		fatal("用法: otk history [-e json|csv] [次数]")
+		fatal(tr("用法: otk history [-e json|csv] [次数]"))
 	}
 	n := 10
 	if len(rest) == 1 {
 		v, err := strconv.Atoi(rest[0])
 		if err != nil || v <= 0 {
-			fatal("次数必须是正整数")
+			fatal(tr("次数必须是正整数"))
 		}
 		n = v
 	}
@@ -144,7 +144,7 @@ func cmdHistory(args []string) {
 	p := requireProject()
 	entries := readHistory(p, n)
 	if len(entries) == 0 {
-		fmt.Println("（还没有评测记录，先 otk j 跑一次）")
+		fmt.Println(tr("（还没有评测记录，先 otk j 跑一次）"))
 		return
 	}
 
@@ -158,12 +158,12 @@ func cmdHistory(args []string) {
 			data = historyCSV(entries)
 		}
 		if err != nil {
-			fatal("导出失败: %v", err)
+			fatal(tr("导出失败: %v"), err)
 		}
 		if werr := os.WriteFile(name, data, 0644); werr != nil {
-			fatal("写入 %s 失败: %v", name, werr)
+			fatal(tr("写入 %s 失败: %v"), name, werr)
 		}
-		fmt.Printf("已导出 %d 条记录到 %s\n", len(entries), name)
+		fmt.Printf(tr("已导出 %d 条记录到 %s\n"), len(entries), name)
 		return
 	}
 
@@ -173,14 +173,14 @@ func cmdHistory(args []string) {
 		walls = append(walls, maxWallOf(e))
 	}
 	if trend := sparkline(walls); trend != "" {
-		fmt.Printf("最慢点耗时趋势（旧 → 新）  %s\n", trend)
+		fmt.Printf(tr("最慢点耗时趋势（旧 → 新）  %s\n"), trend)
 		fmt.Println()
 	}
 
 	for _, e := range entries {
 		verd := green + "AC" + reset
 		if e.Passed < e.Total {
-			verd = red + "未通过" + reset
+			verd = red + tr("未通过") + reset
 			if first := firstWorstVerdict(e.Points); first != "" {
 				verd = red + first + reset
 			}

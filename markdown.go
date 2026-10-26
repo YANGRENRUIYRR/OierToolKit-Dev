@@ -31,7 +31,7 @@ import (
 // 行内代码、代码块、列表、链接与表格（渲染范围以 Fyne 实现为准）。
 
 // statementFileNames 是题面文件的候选名，按优先级排列。
-var statementFileNames = []string{"problem.md", "statement.md", "题面.md", "README.md"}
+var statementFileNames = []string{"problem.md", "statement.md", tr("题面.md"), "README.md"}
 
 // findStatement 在项目目录里找题面文件，返回路径或空串。
 func findStatement(p project) string {
@@ -69,12 +69,12 @@ func newStatementPage(pg *projectPage) *statementPage {
 	s.rich.Wrapping = fyne.TextWrapWord
 	s.editor = widget.NewMultiLineEntry()
 	s.editor.Wrapping = fyne.TextWrapOff
-	s.editor.SetPlaceHolder("## 题面\n\n在这里写 Markdown，Ctrl+S 保存。")
+	s.editor.SetPlaceHolder(tr("## 题面\n\n在这里写 Markdown，Ctrl+S 保存。"))
 	s.preview = container.NewVScroll(container.NewPadded(s.rich))
 	s.paneStack = container.NewStack(s.preview)
 
 	reloadBtn := widget.NewButtonWithIcon(tr("重新加载"), theme.ViewRefreshIcon(), s.reload)
-	s.editBtn = widget.NewButtonWithIcon("编辑题面", theme.DocumentCreateIcon(), s.toggleEdit)
+	s.editBtn = widget.NewButtonWithIcon(tr("编辑题面"), theme.DocumentCreateIcon(), s.toggleEdit)
 	saveBtn := widget.NewButtonWithIcon(tr("保存"), theme.DocumentSaveIcon(), s.save)
 	head := container.NewBorder(nil, nil, s.editBtn,
 		container.NewHBox(saveBtn, reloadBtn), container.NewPadded(s.title))
@@ -93,11 +93,11 @@ func (s *statementPage) toggleEdit() {
 	if s.editing {
 		s.editor.SetText(s.text)
 		s.paneStack.Objects = []fyne.CanvasObject{container.NewVScroll(s.editor)}
-		s.editBtn.SetText("退出编辑")
+		s.editBtn.SetText(tr("退出编辑"))
 	} else {
 		s.rich.ParseMarkdown(stmtPreviewText(s.text))
 		s.paneStack.Objects = []fyne.CanvasObject{s.preview}
-		s.editBtn.SetText("编辑题面")
+		s.editBtn.SetText(tr("编辑题面"))
 	}
 	s.paneStack.Refresh()
 }
@@ -117,21 +117,21 @@ func (s *statementPage) save() {
 	}
 	s.title.SetText(path)
 	s.rich.ParseMarkdown(stmtPreviewText(s.text))
-	s.pg.g.setStatus("题面已保存：" + path)
+	s.pg.g.setStatus(tr("题面已保存：") + path)
 }
 
 // reload 读取题面文件并渲染；没有题面时给放置提示。
 func (s *statementPage) reload() {
 	path := findStatement(s.pg.p)
 	if path == "" {
-		s.title.SetText("没有找到题面文件（点“编辑题面”可直接新建 problem.md）")
+		s.title.SetText(tr("没有找到题面文件（点“编辑题面”可直接新建 problem.md）"))
 		s.text = ""
 		s.rich.ParseMarkdown(stmtPreviewText(""))
 		return
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		s.title.SetText("读取失败：" + err.Error())
+		s.title.SetText(tr("读取失败：") + err.Error())
 		s.rich.Segments = nil
 		s.rich.Refresh()
 		return

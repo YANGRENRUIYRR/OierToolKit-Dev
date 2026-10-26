@@ -61,8 +61,8 @@ func (s *stressPage) reload() {
 		return
 	}
 	p := s.pg.p
-	s.status.SetText("准备就绪，待测：" + p.codeName() + ".cpp。项目目录里需要有 gen.cpp 与 brute.cpp。")
-	s.detail.SetText("对拍结果会显示在这里。")
+	s.status.SetText(fmt.Sprintf(tr("准备就绪，待测：%s.cpp。项目目录里需要有 gen.cpp 与 brute.cpp。"), p.codeName()))
+	s.detail.SetText(tr("对拍结果会显示在这里。"))
 }
 
 func newStressPage(pg *projectPage) *stressPage {
@@ -73,13 +73,13 @@ func newStressPage(pg *projectPage) *stressPage {
 	s.rounds.Validator = func(text string) error {
 		n, err := strconv.Atoi(strings.TrimSpace(text))
 		if err != nil || n <= 0 {
-			return fmt.Errorf("轮数必须是正整数")
+			return fmt.Errorf("%s", tr("轮数必须是正整数"))
 		}
 		return nil
 	}
 
-	s.status = caption("准备就绪。项目目录里需要有 gen.cpp 与 brute.cpp。")
-	s.detail = hint("对拍结果会显示在这里。")
+	s.status = caption(tr("准备就绪。项目目录里需要有 gen.cpp 与 brute.cpp。"))
+	s.detail = hint(tr("对拍结果会显示在这里。"))
 	s.bar = widget.NewProgressBar()
 	s.bar.Hide()
 
@@ -103,7 +103,7 @@ func newStressPage(pg *projectPage) *stressPage {
 	s.keepChk = widget.NewCheck(tr("发现反例后继续收集"), nil)
 
 	form := container.NewBorder(nil, nil,
-		container.NewHBox(caption("轮数"), container.NewGridWrap(fyne.NewSize(110, 36), s.rounds), s.keepChk),
+		container.NewHBox(caption(tr("轮数")), container.NewGridWrap(fyne.NewSize(110, 36), s.rounds), s.keepChk),
 		container.NewHBox(s.startBtn, s.stopBtn),
 		nil,
 	)
@@ -117,7 +117,7 @@ func newStressPage(pg *projectPage) *stressPage {
 
 	bottom := container.NewPadded(container.NewBorder(nil, nil, nil,
 		container.NewHBox(s.saveBtn, s.manageBtn, s.dataBtn),
-		caption("反例数据保存为 <轮次>.in / .ans / .out，可一键存为样例后在评测页复测")))
+		caption(tr("反例数据保存为 <轮次>.in / .ans / .out，可一键存为样例后在评测页复测"))))
 	s.content = container.NewBorder(head, bottom, nil, nil, container.NewVScroll(s.detail))
 	s.reload()
 	return s
@@ -130,7 +130,7 @@ func (s *stressPage) run() {
 	}
 	count, err := strconv.Atoi(strings.TrimSpace(s.rounds.Text))
 	if err != nil || count <= 0 {
-		s.pg.g.showError(fmt.Errorf("轮数必须是正整数"))
+		s.pg.g.showError(fmt.Errorf("%s", tr("轮数必须是正整数")))
 		return
 	}
 
@@ -143,7 +143,7 @@ func (s *stressPage) run() {
 	s.bar.Show()
 	s.startBtn.Disable()
 	s.stopBtn.Enable()
-	s.pg.g.busy(true, "对拍准备中 ...")
+	s.pg.g.busy(true, tr("对拍准备中 ..."))
 
 	p := s.pg.p
 	keepGoing := s.keepChk.Checked
@@ -152,12 +152,12 @@ func (s *stressPage) run() {
 			ui(func() {
 				switch ev.Stage {
 				case stressCompile:
-					s.status.SetText(fmt.Sprintf("已编译 %s（%d/3）", ev.Name, ev.Done+1))
+					s.status.SetText(fmt.Sprintf(tr("已编译 %s（%d/3）"), ev.Name, ev.Done+1))
 				case stressStart:
-					s.status.SetText(fmt.Sprintf("对拍 %d 轮 ...", ev.Total))
+					s.status.SetText(fmt.Sprintf(tr("对拍 %d 轮 ..."), ev.Total))
 				case stressRound:
 					s.bar.SetValue(float64(ev.Round) / float64(ev.Total))
-					s.status.SetText(fmt.Sprintf("第 %d/%d 轮", ev.Round, ev.Total))
+					s.status.SetText(fmt.Sprintf(tr("第 %d/%d 轮"), ev.Round, ev.Total))
 				}
 			})
 		}, func() bool { return s.cancel.Load() })
@@ -167,40 +167,40 @@ func (s *stressPage) run() {
 			s.lastRes = &res
 			s.startBtn.Enable()
 			s.stopBtn.Disable()
-			s.pg.g.busy(false, "对拍结束")
+			s.pg.g.busy(false, tr("对拍结束"))
 
 			if err != nil {
 				s.bar.Hide()
 				if cf, ok := err.(compileFailure); ok {
-					s.status.SetText("[CE] 编译失败")
+					s.status.SetText("[CE] " + tr("编译失败"))
 					s.detail.SetText(cf.Log)
 					return
 				}
-				s.status.SetText("对拍失败")
+				s.status.SetText(tr("对拍失败"))
 				s.detail.SetText(err.Error())
 				return
 			}
 
 			switch {
 			case res.Stopped:
-				s.status.SetText(fmt.Sprintf("已中断（完成 %d 轮）", res.Passed))
-				s.detail.SetText("对拍被手动停止。")
+				s.status.SetText(fmt.Sprintf(tr("已中断（完成 %d 轮）"), res.Passed))
+				s.detail.SetText(tr("对拍被手动停止。"))
 
 			case res.FailRound > 0:
 				extra := ""
 				if res.Counterexamples > 1 {
-					extra = fmt.Sprintf("，共收集 %d 组反例", res.Counterexamples)
+					extra = fmt.Sprintf(tr("，共收集 %d 组反例"), res.Counterexamples)
 				}
-				s.status.SetText(fmt.Sprintf("第 %d 轮发现反例（已保存到 .stress%s）", res.FailRound, extra))
-				s.detail.SetText(fmt.Sprintf("输入数据：\n%s\n期望输出：\n%s\n实际输出：\n%s",
+				s.status.SetText(fmt.Sprintf(tr("第 %d 轮发现反例（已保存到 .stress%s）"), res.FailRound, extra))
+				s.detail.SetText(fmt.Sprintf(tr("输入数据：\n%s\n期望输出：\n%s\n实际输出：\n%s"),
 					clip(res.Input), res.Expected, res.Actual))
 				s.dataBtn.Enable()
 				s.saveBtn.Enable()
 
 			default:
 				s.bar.SetValue(1)
-				s.status.SetText(fmt.Sprintf("全部通过（%d/%d）", res.Total, res.Total))
-				summary := "没有发现反例。"
+				s.status.SetText(fmt.Sprintf(tr("全部通过（%d/%d）"), res.Total, res.Total))
+				summary := tr("没有发现反例。")
 				if t := timingSummary(res); t != "" {
 					summary += "\n\n" + t
 				}
@@ -221,7 +221,7 @@ func (s *stressPage) saveCounterexample() {
 		s.pg.g.showError(err)
 		return
 	}
-	s.pg.g.setStatus(fmt.Sprintf("已把第 %d 轮反例存为样例 #%s（含期望输出）", res.FailRound, id))
+	s.pg.g.setStatus(fmt.Sprintf(tr("已把第 %d 轮反例存为样例 #%s（含期望输出）"), res.FailRound, id))
 }
 
 // stressRounds 列出 .stress 目录里已有的反例轮次（升序）。
@@ -256,8 +256,8 @@ func (s *stressPage) manageDialog() {
 	detail.TextStyle = fyne.TextStyle{Monospace: true}
 	detail.Wrapping = fyne.TextWrapWord
 
-	saveBtn := widget.NewButton("存为样例", nil)
-	delBtn := widget.NewButton("删除本轮", nil)
+	saveBtn := widget.NewButton(tr("存为样例"), nil)
+	delBtn := widget.NewButton(tr("删除本轮"), nil)
 	actions := container.NewHBox(saveBtn, delBtn)
 
 	list := widget.NewList(
@@ -268,19 +268,19 @@ func (s *stressPage) manageDialog() {
 			if id < 0 || id >= len(rounds) {
 				return
 			}
-			obj.(*widget.Label).SetText("第 " + rounds[id] + " 轮")
+			obj.(*widget.Label).SetText(fmt.Sprintf(tr("第 %s 轮"), rounds[id]))
 		},
 	)
 	load := func(round string) {
 		var b strings.Builder
 		if data, err := os.ReadFile(filepath.Join(dir, round+".in")); err == nil {
-			fmt.Fprintf(&b, "输入：\n%s\n", clip(string(data)))
+			fmt.Fprintf(&b, tr("输入：\n%s\n"), clip(string(data)))
 		}
 		if data, err := os.ReadFile(filepath.Join(dir, round+".ans")); err == nil {
-			fmt.Fprintf(&b, "期望输出：\n%s\n", clip(string(data)))
+			fmt.Fprintf(&b, tr("期望输出：\n%s\n"), clip(string(data)))
 		}
 		if data, err := os.ReadFile(filepath.Join(dir, round+".out")); err == nil {
-			fmt.Fprintf(&b, "实际输出：\n%s\n", clip(string(data)))
+			fmt.Fprintf(&b, tr("实际输出：\n%s\n"), clip(string(data)))
 		}
 		detail.SetText(b.String())
 	}
@@ -309,14 +309,14 @@ func (s *stressPage) manageDialog() {
 			s.pg.g.showError(err)
 			return
 		}
-		s.pg.g.setStatus(fmt.Sprintf("已把第 %s 轮反例存为样例 #%s", round, id))
+		s.pg.g.setStatus(fmt.Sprintf(tr("已把第 %s 轮反例存为样例 #%s"), round, id))
 	}
 	delBtn.OnTapped = func() {
 		if current == "" {
 			return
 		}
 		round := current
-		dialog.ShowConfirm("删除反例", "将删除第 "+round+" 轮的 .in/.ans/.out 文件，确定吗？", func(ok bool) {
+		dialog.ShowConfirm(tr("删除反例"), fmt.Sprintf(tr("将删除第 %s 轮的 .in/.ans/.out 文件，确定吗？"), round), func(ok bool) {
 			if !ok {
 				return
 			}
@@ -328,20 +328,20 @@ func (s *stressPage) manageDialog() {
 			saveBtn.Disable()
 			delBtn.Disable()
 			list.Refresh()
-			s.pg.g.setStatus("已删除第 " + round + " 轮反例")
+			s.pg.g.setStatus(fmt.Sprintf(tr("已删除第 %s 轮反例"), round))
 		}, s.pg.g.win)
 	}
 
 	if len(stressRounds(dir)) == 0 {
-		body := container.NewVBox(caption(".stress 目录里还没有反例。\n跑一次对拍，发现反例后会自动保存到这里。"))
-		d = dialog.NewCustom("管理反例", "关闭", container.NewPadded(body), s.pg.g.win)
+		body := container.NewVBox(caption(tr(".stress 目录里还没有反例。\n跑一次对拍，发现反例后会自动保存到这里。")))
+		d = dialog.NewCustom(tr("管理反例"), tr("关闭"), container.NewPadded(body), s.pg.g.win)
 	} else {
 		body := container.NewHSplit(
 			container.NewVScroll(list),
 			container.NewVScroll(container.NewVBox(detail, widget.NewSeparator(), actions)),
 		)
 		body.SetOffset(0.22)
-		d = dialog.NewCustom("管理反例（.stress）", "关闭", body, s.pg.g.win)
+		d = dialog.NewCustom(tr("管理反例（.stress）"), tr("关闭"), body, s.pg.g.win)
 	}
 	d.Resize(fyne.NewSize(680, 460))
 	d.Show()
@@ -350,7 +350,7 @@ func (s *stressPage) manageDialog() {
 // stop 请求中断对拍。
 func (s *stressPage) stop() {
 	s.cancel.Store(true)
-	s.status.SetText("正在停止 ...")
+	s.status.SetText(tr("正在停止 ..."))
 }
 
 // clip 限制超长输入在详情里的展示体量。
@@ -359,5 +359,5 @@ func clip(text string) string {
 	if len(text) <= limit {
 		return text
 	}
-	return text[:limit] + "\n...（已截断）"
+	return text[:limit] + "\n" + tr("...（已截断）")
 }

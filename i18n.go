@@ -31,32 +31,6 @@ const prefLang = "gui_lang"
 // languageChoices 是设置页里的可选语言。
 var languageChoices = []string{"跟随系统", "中文", "English"}
 
-// enUI 是中 → 英词条表，覆盖界面骨架与主要操作按钮。
-var enUI = map[string]string{
-	// 项目功能页
-	"概览": "Overview", "源码": "Source", "题面": "Statement",
-	"样例": "Samples", "评测": "Judge", "对拍": "Stress", "提交": "Submit",
-	// 模拟赛页
-	"榜单": "Board", "题目配置": "Problems", "选手与提交": "Roster", "评测日志": "Log",
-	"开始评测": "Judge All", "停止": "Stop", "导出 HTML 榜单": "Export HTML",
-	"导出 CSV": "Export CSV", "返回比赛列表": "Back",
-	// 对拍页
-	"开始对拍": "Start", "存为样例": "Save as Sample", "管理反例": "Manage",
-	"打开 .stress 目录": "Open .stress", "发现反例后继续收集": "Collect more after WA",
-	// 源码页
-	"保存": "Save", "重新加载": "Reload", "外部编辑器": "External Editor",
-	"gdb 调试": "gdb Debug", "统计": "Stats",
-	// 样例页
-	"保存样例": "Save Sample", "同步": "Sync", "从剪贴板导入": "Import Clipboard",
-	// 概览页
-	"同步样例": "Sync Samples", "打开目录": "Open Folder",
-	"在终端打开": "Open Terminal", "移除项目…": "Remove Project…",
-	"配置远端": "Remotes…",
-	// 设置
-	"跟随系统": "Auto", "窗口模式": "Window Mode",
-	"全屏启动": "Start fullscreen", "窗口化启动（恢复上次窗口大小与位置）": "Windowed (restore last size & position)",
-}
-
 // uiLangIsEnglish 判断界面是否使用英文。
 func uiLangIsEnglish() bool {
 	return guiPref(prefLang, "auto") == "en"

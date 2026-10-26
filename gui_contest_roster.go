@@ -56,7 +56,7 @@ type rosterEntry struct {
 func newContestRoster(p *contestPage) *contestRoster {
 	r := &contestRoster{page: p, selected: -1}
 	r.summary = caption("")
-	r.preview = hint("选择一行查看源码路径与文件是否存在。")
+	r.preview = hint(tr("选择一行查看源码路径与文件是否存在。"))
 
 	r.list = widget.NewList(
 		func() int { return len(r.entries) },
@@ -75,18 +75,18 @@ func newContestRoster(p *contestPage) *contestRoster {
 		}
 		r.selected = id
 		e := r.entries[id]
-		state := "文件存在"
+		state := tr("文件存在")
 		if e.Missing {
-			state = "源码缺失"
+			state = tr("源码缺失")
 		}
 		full := filepath.Join(p.c.Dir, filepath.FromSlash(e.Path))
 		r.preview.SetText(fmt.Sprintf("%s / %s\n%s\n%s", e.Player, e.Problem, full, state))
 	}
 
-	addBtn := widget.NewButtonWithIcon("补交源码", theme.ContentAddIcon(), r.addDialog)
-	renameBtn := widget.NewButtonWithIcon("选手改名", theme.AccountIcon(), r.renameDialog)
-	removeBtn := deleteButton("删除提交", r.removeSelected)
-	openDirBtn := widget.NewButtonWithIcon("打开 source 目录", theme.FolderOpenIcon(), func() {
+	addBtn := widget.NewButtonWithIcon(tr("补交源码"), theme.ContentAddIcon(), r.addDialog)
+	renameBtn := widget.NewButtonWithIcon(tr("选手改名"), theme.AccountIcon(), r.renameDialog)
+	removeBtn := deleteButton(tr("删除提交"), r.removeSelected)
+	openDirBtn := widget.NewButtonWithIcon(tr("打开 source 目录"), theme.FolderOpenIcon(), func() {
 		if err := openPath(p.c.sourceDir()); err != nil {
 			p.g.showError(err)
 		}
@@ -94,7 +94,7 @@ func newContestRoster(p *contestPage) *contestRoster {
 
 	head := container.NewVBox(
 		container.NewPadded(container.NewVBox(
-			caption("比赛里的选手与提交决定了评测范围。src 目录结构为 source/<选手>/<题目>.cpp。"),
+			caption(tr("比赛里的选手与提交决定了评测范围。src 目录结构为 source/<选手>/<题目>.cpp。")),
 			container.NewHBox(addBtn, renameBtn, removeBtn, openDirBtn),
 			r.summary,
 			widget.NewSeparator(),
@@ -138,9 +138,9 @@ func (r *contestRoster) reload() {
 			missing++
 		}
 	}
-	text := fmt.Sprintf("%d 位选手 · %d 份提交 · %d 道题", len(players), len(entries), len(c.Cfg.Problems))
+	text := fmt.Sprintf(tr("%d 位选手 · %d 份提交 · %d 道题"), len(players), len(entries), len(c.Cfg.Problems))
 	if missing > 0 {
-		text += fmt.Sprintf(" · %d 份源码缺失", missing)
+		text += fmt.Sprintf(tr(" · %d 份源码缺失"), missing)
 	}
 	r.summary.SetText(text)
 
@@ -159,7 +159,7 @@ func (r *contestRoster) addDialog() {
 		probNames = append(probNames, p.Name)
 	}
 	if len(probNames) == 0 {
-		r.page.g.showError(fmt.Errorf("这场比赛没有题目，先在“题目配置”里重新扫描测试点"))
+		r.page.g.showError(fmt.Errorf("%s", tr("这场比赛没有题目，先在“题目配置”里重新扫描测试点")))
 		return
 	}
 
@@ -169,13 +169,13 @@ func (r *contestRoster) addDialog() {
 		known = append(known, p.Name)
 	}
 	playerIn.SetOptions(known)
-	playerIn.SetPlaceHolder("选手名")
+	playerIn.SetPlaceHolder(tr("选手名"))
 
 	probSel := widget.NewSelect(probNames, nil)
 	probSel.SetSelected(probNames[0])
 
 	pathIn := widget.NewEntry()
-	pathIn.SetPlaceHolder("选择 .cpp 源码文件")
+	pathIn.SetPlaceHolder(tr("选择 .cpp 源码文件"))
 	browse := widget.NewButtonWithIcon("", theme.FileIcon(), func() {
 		picker := dialog.NewFileOpen(func(uc fyne.URIReadCloser, err error) {
 			if err != nil || uc == nil {
@@ -190,14 +190,14 @@ func (r *contestRoster) addDialog() {
 
 	content := container.NewVBox(
 		widget.NewForm(
-			widget.NewFormItem("选手", playerIn),
-			widget.NewFormItem("题目", probSel),
-			widget.NewFormItem("源码", pathRow),
+			widget.NewFormItem(tr("选手"), playerIn),
+			widget.NewFormItem(tr("题目"), probSel),
+			widget.NewFormItem(tr("源码"), pathRow),
 		),
-		caption("源码会被复制到 source/<选手>/<题目>.cpp，原有同名文件会被覆盖。"),
+		caption(tr("源码会被复制到 source/<选手>/<题目>.cpp，原有同名文件会被覆盖。")),
 	)
 
-	dialog.ShowCustomConfirm("补交源码", "添加", "取消", content, func(ok bool) {
+	dialog.ShowCustomConfirm(tr("补交源码"), tr("添加"), tr("取消"), content, func(ok bool) {
 		if !ok {
 			return
 		}
@@ -205,7 +205,7 @@ func (r *contestRoster) addDialog() {
 		prob := probSel.Selected
 		src := strings.TrimSpace(pathIn.Text)
 		if player == "" || prob == "" || src == "" {
-			r.page.g.showError(fmt.Errorf("选手、题目与源码都不能为空"))
+			r.page.g.showError(fmt.Errorf("%s", tr("选手、题目与源码都不能为空")))
 			return
 		}
 		if err := r.page.addSubmission(player, prob, src); err != nil {
@@ -213,7 +213,7 @@ func (r *contestRoster) addDialog() {
 			return
 		}
 		r.reload()
-		r.page.g.setStatus(fmt.Sprintf("已添加 %s / %s", player, prob))
+		r.page.g.setStatus(fmt.Sprintf(tr("已添加 %s / %s"), player, prob))
 	}, r.page.g.win)
 }
 
@@ -228,7 +228,7 @@ func (r *contestRoster) renameDialog() {
 		}
 	}
 	if len(names) == 0 {
-		r.page.g.showError(fmt.Errorf("还没有任何选手"))
+		r.page.g.showError(fmt.Errorf("%s", tr("还没有任何选手")))
 		return
 	}
 	sort.Strings(names)
@@ -236,23 +236,23 @@ func (r *contestRoster) renameDialog() {
 	from := widget.NewSelect(names, nil)
 	from.SetSelected(names[0])
 	to := widget.NewEntry()
-	to.SetPlaceHolder("新的选手名")
+	to.SetPlaceHolder(tr("新的选手名"))
 
 	content := container.NewVBox(
 		widget.NewForm(
-			widget.NewFormItem("原选手", from),
-			widget.NewFormItem("新名字", to),
+			widget.NewFormItem(tr("原选手"), from),
+			widget.NewFormItem(tr("新名字"), to),
 		),
-		caption("会把 source/<原选手>/ 整个目录改名为新名字，并更新配置。"),
+		caption(tr("会把 source/<原选手>/ 整个目录改名为新名字，并更新配置。")),
 	)
 
-	dialog.ShowCustomConfirm("选手改名", "改名", "取消", content, func(ok bool) {
+	dialog.ShowCustomConfirm(tr("选手改名"), tr("改名"), tr("取消"), content, func(ok bool) {
 		if !ok {
 			return
 		}
 		newName := strings.TrimSpace(to.Text)
 		if newName == "" {
-			r.page.g.showError(fmt.Errorf("新名字不能为空"))
+			r.page.g.showError(fmt.Errorf("%s", tr("新名字不能为空")))
 			return
 		}
 		if err := r.page.renamePlayer(from.Selected, newName); err != nil {
@@ -267,12 +267,12 @@ func (r *contestRoster) renameDialog() {
 // removeSelected 从比赛中删除一行提交（只删配置与源码文件）。
 func (r *contestRoster) removeSelected() {
 	if r.selected < 0 || r.selected >= len(r.entries) {
-		r.page.g.showError(fmt.Errorf("先在上面选中一行"))
+		r.page.g.showError(fmt.Errorf("%s", tr("先在上面选中一行")))
 		return
 	}
 	e := r.entries[r.selected]
-	dialog.ShowConfirm("删除提交",
-		fmt.Sprintf("将从比赛中移除 %s / %s（连同源码文件）。", e.Player, e.Problem),
+	dialog.ShowConfirm(tr("删除提交"),
+		fmt.Sprintf(tr("将从比赛中移除 %s / %s（连同源码文件）。"), e.Player, e.Problem),
 		func(ok bool) {
 			if !ok {
 				return
@@ -282,7 +282,7 @@ func (r *contestRoster) removeSelected() {
 				return
 			}
 			r.reload()
-			r.page.g.setStatus("已删除 " + e.Player + " / " + e.Problem)
+			r.page.g.setStatus(fmt.Sprintf(tr("已删除 %s / %s"), e.Player, e.Problem))
 		}, r.page.g.win)
 }
 
@@ -292,17 +292,17 @@ func (r *contestRoster) removeSelected() {
 func (p *contestPage) addSubmission(player, problem, srcPath string) error {
 	prob, ok := p.c.problemOf(problem)
 	if !ok {
-		return fmt.Errorf("题目 %s 不存在", problem)
+		return fmt.Errorf(tr("题目 %s 不存在"), problem)
 	}
 	_ = prob
 	if !fileExists(srcPath) {
-		return fmt.Errorf("源码文件不存在：%s", srcPath)
+		return fmt.Errorf(tr("源码文件不存在：%s"), srcPath)
 	}
 
 	rel := filepath.ToSlash(filepath.Join("source", sanitizeFileName(player), sanitizeFileName(problem)+".cpp"))
 	dest := filepath.Join(p.c.Dir, filepath.FromSlash(rel))
 	if err := copyFile(srcPath, dest); err != nil {
-		return fmt.Errorf("复制源码失败：%v", err)
+		return fmt.Errorf(tr("复制源码失败：%v"), err)
 	}
 
 	// 同一个人同一道题只保留一条记录。
@@ -373,7 +373,7 @@ func (p *contestPage) renamePlayer(from, to string) error {
 	}
 	for _, pl := range p.c.Cfg.Players {
 		if pl.Name == to {
-			return fmt.Errorf("已经存在选手 %s", to)
+			return fmt.Errorf(tr("已经存在选手 %s"), to)
 		}
 	}
 
@@ -381,10 +381,10 @@ func (p *contestPage) renamePlayer(from, to string) error {
 	newDir := filepath.Join(p.c.sourceDir(), sanitizeFileName(to))
 	if dirExists(oldDir) {
 		if dirExists(newDir) {
-			return fmt.Errorf("目录 %s 已存在，改名前请先清理", newDir)
+			return fmt.Errorf(tr("目录 %s 已存在，改名前请先清理"), newDir)
 		}
 		if err := os.Rename(oldDir, newDir); err != nil {
-			return fmt.Errorf("移动目录失败：%v", err)
+			return fmt.Errorf(tr("移动目录失败：%v"), err)
 		}
 	}
 
@@ -435,7 +435,7 @@ func (r *rosterRow) update(player, problem string, missing, selected bool) {
 	r.name.SetText(player)
 	r.info.SetText(problem + ".cpp")
 	if missing {
-		r.info.SetText(problem + ".cpp · 源码缺失")
+		r.info.SetText(problem + ".cpp · " + tr("源码缺失"))
 		r.name.Importance = widget.DangerImportance
 	} else if selected {
 		r.name.Importance = widget.HighImportance

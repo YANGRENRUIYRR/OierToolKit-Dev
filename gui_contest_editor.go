@@ -86,7 +86,7 @@ func newContestEditor(p *contestPage) *contestEditor {
 			name := e.probNames[id]
 			sub := ""
 			if prob, ok := p.c.problemOf(name); ok {
-				sub = fmt.Sprintf("%d 测试点 · 满分 %s 分", len(prob.Tests), fmtScore(fullScoreOf(p.c, name)))
+				sub = fmt.Sprintf(tr("%d 测试点 · 满分 %s 分"), len(prob.Tests), fmtScore(fullScoreOf(p.c, name)))
 			}
 			obj.(*simpleRow).update(name, sub, id == e.selected)
 		},
@@ -99,7 +99,7 @@ func newContestEditor(p *contestPage) *contestEditor {
 		e.showProblem()
 	}
 
-	e.titleLabel = widget.NewLabelWithStyle("选择左侧的题目", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	e.titleLabel = widget.NewLabelWithStyle(tr("选择左侧的题目"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	e.titleLabel.SizeName = theme.SizeNameSubHeadingText
 	e.subtaskBox = container.NewVBox()
 	e.testBox = container.NewVBox()
@@ -119,12 +119,12 @@ func newContestEditor(p *contestPage) *contestEditor {
 
 // buildLeftPane 是左侧的题目列表与全局操作。
 func (e *contestEditor) buildLeftPane() fyne.CanvasObject {
-	scanBtn := widget.NewButtonWithIcon("重新扫描测试点", theme.ViewRefreshIcon(), e.page.rescan)
-	regenBtn := widget.NewButtonWithIcon("自动生成子任务", theme.ContentAddIcon(), e.page.autoSubtasks)
-	fullBtn := widget.NewButtonWithIcon("每题补足 100 分", theme.ConfirmIcon(), e.page.fillScores)
+	scanBtn := widget.NewButtonWithIcon(tr("重新扫描测试点"), theme.ViewRefreshIcon(), e.page.rescan)
+	regenBtn := widget.NewButtonWithIcon(tr("自动生成子任务"), theme.ContentAddIcon(), e.page.autoSubtasks)
+	fullBtn := widget.NewButtonWithIcon(tr("每题补足 100 分"), theme.ConfirmIcon(), e.page.fillScores)
 
 	head := container.NewVBox(
-		container.NewPadded(caption("题目")),
+		container.NewPadded(caption(tr("题目"))),
 		widget.NewSeparator(),
 	)
 	foot := container.NewVBox(
@@ -151,9 +151,9 @@ func (e *contestEditor) reload() {
 		}
 	}
 	if e.selected < 0 {
-		e.titleLabel.SetText("选择左侧的题目")
+		e.titleLabel.SetText(tr("选择左侧的题目"))
 		e.detail.Objects = []fyne.CanvasObject{
-			container.NewPadded(caption("这场比赛没有可配置的题目。点左下角“重新扫描测试点”从 data/ 目录重新读取。")),
+			container.NewPadded(caption(tr("这场比赛没有可配置的题目。点左下角“重新扫描测试点”从 data/ 目录重新读取。"))),
 		}
 		e.detail.Refresh()
 		return
@@ -168,7 +168,7 @@ func (e *contestEditor) showProblem() {
 		return
 	}
 	prob := p.c.Cfg.Problems[e.selected]
-	e.titleLabel.SetText(fmt.Sprintf("%s（满分 %s 分）", prob.Name, fmtScore(fullScoreOf(p.c, prob.Name))))
+	e.titleLabel.SetText(fmt.Sprintf(tr("%s（满分 %s 分）"), prob.Name, fmtScore(fullScoreOf(p.c, prob.Name))))
 
 	// 基本属性
 	titleIn := widget.NewEntry()
@@ -197,7 +197,7 @@ func (e *contestEditor) showProblem() {
 	}
 
 	// 文件读写题：程序从文件读入、向文件写出（freopen）。
-	ioChk := widget.NewCheck("文件读写题", nil)
+	ioChk := widget.NewCheck(tr("文件读写题"), nil)
 	ioChk.SetChecked(prob.IOFile)
 	ioChk.OnChanged = func(v bool) {
 		p.updateProblem(e.selected, func(pr *contestProblem) { pr.IOFile = v })
@@ -232,7 +232,7 @@ func (e *contestEditor) showProblem() {
 	// 题面：Markdown，编辑与预览都在弹窗里完成，榜单明细里也会渲染。
 	stmtIn := widget.NewMultiLineEntry()
 	stmtIn.SetText(prob.Statement)
-	stmtIn.SetPlaceHolder("## 题面\n\n支持 Markdown……")
+	stmtIn.SetPlaceHolder(tr("## 题面\n\n支持 Markdown……"))
 	stmtIn.OnChanged = func(v string) {
 		p.updateProblem(e.selected, func(pr *contestProblem) { pr.Statement = v })
 	}
@@ -241,13 +241,13 @@ func (e *contestEditor) showProblem() {
 	stmtView.ParseMarkdown(stmtPreviewText(prob.Statement))
 
 	stmtBox := container.NewStack(stmtView)
-	editBtn := widget.NewButtonWithIcon("编辑题面", theme.DocumentCreateIcon(), func() {
+	editBtn := widget.NewButtonWithIcon(tr("编辑题面"), theme.DocumentCreateIcon(), func() {
 		p.g.showSheet(sheetOptions{
-			Title:   prob.Name + " 题面",
-			Confirm: "保存",
-			Dismiss: "取消",
+			Title:   prob.Name + tr(" 题面"),
+			Confirm: tr("保存"),
+			Dismiss: tr("取消"),
 			Content: container.NewBorder(
-				caption("Markdown 源码，保存后立即渲染到下方预览与榜单明细。"), nil, nil, nil,
+				caption(tr("Markdown 源码，保存后立即渲染到下方预览与榜单明细。")), nil, nil, nil,
 				stmtIn,
 			),
 			OnConfirm: func() {
@@ -258,13 +258,13 @@ func (e *contestEditor) showProblem() {
 		})
 	})
 	stmtPane := container.NewBorder(
-		container.NewHBox(editBtn, caption("预览如下；没有题面时显示占位提示")),
+		container.NewHBox(editBtn, caption(tr("预览如下；没有题面时显示占位提示"))),
 		nil, nil, nil,
 		container.NewVScroll(stmtBox),
 	)
 
 	// 特殊判题：data/<题目>/checker.cpp（checker <输入> <选手输出> <期望输出>）。
-	spjChk := widget.NewCheck("特殊判题（checker.cpp）", nil)
+	spjChk := widget.NewCheck(tr("特殊判题（checker.cpp）"), nil)
 	spjChk.SetChecked(prob.SPJ)
 	spjChk.OnChanged = func(v bool) {
 		p.updateProblem(e.selected, func(pr *contestProblem) { pr.SPJ = v })
@@ -275,26 +275,26 @@ func (e *contestEditor) showProblem() {
 	e.refreshSummary()
 
 	basic := container.NewVBox(
-		section("基本信息"),
+		section(tr("基本信息")),
 		widget.NewForm(
-			widget.NewFormItem("显示标题", titleIn),
-			widget.NewFormItem("时限（秒）", timeIn),
-			widget.NewFormItem("内存（MB）", memIn),
-			widget.NewFormItem("编译器", compSel),
-			widget.NewFormItem("输入输出", container.NewVBox(ioChk, ioIn, ioOut)),
-			widget.NewFormItem("特殊判题", container.NewVBox(spjChk,
-				caption("把 checker.cpp 放进 data/"+prob.Name+"/，约定：\nchecker <输入> <选手输出> <期望输出>，退出码 0 为 AC。"))),
-			widget.NewFormItem("题面", container.NewVBox(stmtPane,
-				caption("Markdown，保存在比赛配置里，榜单明细中渲染。"))),
+			widget.NewFormItem(tr("显示标题"), titleIn),
+			widget.NewFormItem(tr("时限（秒）"), timeIn),
+			widget.NewFormItem(tr("内存（MB）"), memIn),
+			widget.NewFormItem(tr("编译器"), compSel),
+			widget.NewFormItem(tr("输入输出"), container.NewVBox(ioChk, ioIn, ioOut)),
+			widget.NewFormItem(tr("特殊判题"), container.NewVBox(spjChk,
+				caption(fmt.Sprintf(tr("把 checker.cpp 放进 data/%s/，约定：")+"\n"+tr("checker <输入> <选手输出> <期望输出>，退出码 0 为 AC。"), prob.Name)))),
+			widget.NewFormItem(tr("题面"), container.NewVBox(stmtPane,
+				caption(tr("Markdown，保存在比赛配置里，榜单明细中渲染。")))),
 		),
 		e.scoreSum,
 		widget.NewSeparator(),
-		section("子任务"),
-		caption("子任务决定一道题的分值构成。没有子任务时按测试点分值直接累加。"),
+		section(tr("子任务")),
+		caption(tr("子任务决定一道题的分值构成。没有子任务时按测试点分值直接累加。")),
 		e.subtaskBox,
 		widget.NewSeparator(),
-		section("测试点"),
-		caption("测试点来自 data/<题目>/ 下的 .in 与 .ans/.out，分值可逐点调整。"),
+		section(tr("测试点")),
+		caption(tr("测试点来自 data/<题目>/ 下的 .in 与 .ans/.out，分值可逐点调整。")),
 		e.testBox,
 	)
 	e.detail.Objects = []fyne.CanvasObject{basic}
@@ -304,7 +304,7 @@ func (e *contestEditor) showProblem() {
 // stmtPreviewText 给空题面一个可读的占位提示。
 func stmtPreviewText(s string) string {
 	if strings.TrimSpace(s) == "" {
-		return "_（还没有题面，点“编辑题面”填写 Markdown 源码）_"
+		return tr("_（还没有题面，点“编辑题面”填写 Markdown 源码）_")
 	}
 	return s
 }
@@ -315,21 +315,21 @@ func (e *contestEditor) buildSubtasks(prob contestProblem) {
 	e.subtaskRows = nil
 
 	if len(prob.Subtasks) == 0 {
-		hint := caption("当前没有子任务，每个测试点独立计分。点下方按钮可以让每个测试点变成一个捆绑子任务。")
-		add := widget.NewButtonWithIcon("按测试点生成子任务", theme.ContentAddIcon(), e.page.autoSubtasks)
+		hint := caption(tr("当前没有子任务，每个测试点独立计分。点下方按钮可以让每个测试点变成一个捆绑子任务。"))
+		add := widget.NewButtonWithIcon(tr("按测试点生成子任务"), theme.ContentAddIcon(), e.page.autoSubtasks)
 		e.subtaskBox.Add(container.NewVBox(hint, container.NewHBox(add)))
 		e.subtaskBox.Refresh()
 		return
 	}
 
 	head := container.NewBorder(nil, nil,
-		container.NewGridWrap(fyne.NewSize(150, 28), caption("子任务名")),
+		container.NewGridWrap(fyne.NewSize(150, 28), caption(tr("子任务名"))),
 		container.NewHBox(
-			container.NewGridWrap(fyne.NewSize(70, 28), caption("分值")),
-			container.NewGridWrap(fyne.NewSize(110, 28), caption("判定方式")),
-			container.NewGridWrap(fyne.NewSize(52, 28), caption("操作")),
+			container.NewGridWrap(fyne.NewSize(70, 28), caption(tr("分值"))),
+			container.NewGridWrap(fyne.NewSize(110, 28), caption(tr("判定方式"))),
+			container.NewGridWrap(fyne.NewSize(52, 28), caption(tr("操作"))),
 		),
-		container.NewGridWrap(fyne.NewSize(200, 28), caption("包含测试点（逗号分隔）")),
+		container.NewGridWrap(fyne.NewSize(200, 28), caption(tr("包含测试点（逗号分隔）"))),
 	)
 	e.subtaskBox.Add(head)
 
@@ -363,7 +363,7 @@ func (e *contestEditor) buildSubtasks(prob contestProblem) {
 			e.refreshSummary()
 		}
 
-		row.mode = widget.NewSelect([]string{"捆绑（全部通过）", "任意通过", "按比例给分"}, nil)
+		row.mode = widget.NewSelect([]string{tr("捆绑（全部通过）"), tr("任意通过"), tr("按比例给分")}, nil)
 		row.mode.SetSelected(modeLabelOf(st.Mode))
 		row.mode.OnChanged = func(v string) {
 			e.page.updateProblem(e.selected, func(pr *contestProblem) {
@@ -388,7 +388,7 @@ func (e *contestEditor) buildSubtasks(prob contestProblem) {
 			e.refreshTestHints()
 		}
 
-		del := deleteIconButton("删除这个子任务", func() {
+		del := deleteIconButton(tr("删除这个子任务"), func() {
 			e.page.removeSubtask(e.selected, idx)
 			e.reload()
 		})
@@ -407,7 +407,7 @@ func (e *contestEditor) buildSubtasks(prob contestProblem) {
 		e.subtaskBox.Add(line)
 	}
 
-	addBtn := widget.NewButtonWithIcon("添加子任务", theme.ContentAddIcon(), func() {
+	addBtn := widget.NewButtonWithIcon(tr("添加子任务"), theme.ContentAddIcon(), func() {
 		e.page.addSubtask(e.selected)
 		e.reload()
 	})
@@ -421,7 +421,7 @@ func (e *contestEditor) buildTests(prob contestProblem) {
 	e.testRows = nil
 
 	if len(prob.Tests) == 0 {
-		e.testBox.Add(caption("这道题在 data/ 下没有成对的 .in 与 .ans/.out。"))
+		e.testBox.Add(caption(tr("这道题在 data/ 下没有成对的 .in 与 .ans/.out。")))
 		e.testBox.Refresh()
 		return
 	}
@@ -451,7 +451,7 @@ func (e *contestEditor) buildTests(prob contestProblem) {
 			container.NewGridWrap(fyne.NewSize(120, 34),
 				widget.NewLabelWithStyle(t.ID, fyne.TextAlignLeading, fyne.TextStyle{Monospace: true})),
 			container.NewGridWrap(fyne.NewSize(90, 34), row.score),
-			container.NewGridWrap(fyne.NewSize(60, 34), caption("分")),
+			container.NewGridWrap(fyne.NewSize(60, 34), caption(tr("分"))),
 			container.NewGridWrap(fyne.NewSize(160, 34), row.subtask),
 		)
 		row.obj = line
@@ -479,11 +479,11 @@ func (e *contestEditor) refreshTestHints() {
 	}
 	for _, row := range e.testRows {
 		if name, ok := owner[row.id]; ok {
-			row.subtask.SetText("属于 " + name)
+			row.subtask.SetText(tr("属于 ") + name)
 		} else if len(prob.Subtasks) > 0 {
-			row.subtask.SetText("未分配给子任务")
+			row.subtask.SetText(tr("未分配给子任务"))
 		} else {
-			row.subtask.SetText("独立计分")
+			row.subtask.SetText(tr("独立计分"))
 		}
 	}
 }
@@ -496,7 +496,7 @@ func (e *contestEditor) refreshSummary() {
 	}
 	prob := p.c.Cfg.Problems[e.selected]
 	full := fullScoreOf(p.c, prob.Name)
-	e.scoreSum.SetText(fmt.Sprintf("本题满分 %s 分", fmtScore(full)))
+	e.scoreSum.SetText(fmt.Sprintf(tr("本题满分 %s 分"), fmtScore(full)))
 
 	var warns []string
 	if len(prob.Subtasks) == 0 {
@@ -505,7 +505,7 @@ func (e *contestEditor) refreshSummary() {
 			sum += t.Score
 		}
 		if sum <= 0 {
-			warns = append(warns, "所有测试点分值都是 0，做对了也拿不到分。")
+			warns = append(warns, tr("所有测试点分值都是 0，做对了也拿不到分。"))
 		}
 	} else {
 		testIDs := map[string]bool{}
@@ -514,18 +514,18 @@ func (e *contestEditor) refreshSummary() {
 		}
 		for _, st := range prob.Subtasks {
 			if len(st.Tests) == 0 {
-				warns = append(warns, fmt.Sprintf("子任务「%s」没有包含任何测试点。", st.Name))
+				warns = append(warns, fmt.Sprintf(tr("子任务「%s」没有包含任何测试点。"), st.Name))
 			}
 			for _, id := range st.Tests {
 				if !testIDs[id] {
-					warns = append(warns, fmt.Sprintf("子任务「%s」引用了不存在的测试点 %s。", st.Name, id))
+					warns = append(warns, fmt.Sprintf(tr("子任务「%s」引用了不存在的测试点 %s。"), st.Name, id))
 				}
 			}
 		}
 	}
 	if len(warns) == 0 {
 		if prob.SPJ && !e.page.c.spjActive(prob) {
-			warns = append(warns, "开了特殊判题，但 data/"+prob.Name+"/checker.cpp 不存在，评测会退回普通比对。")
+			warns = append(warns, fmt.Sprintf(tr("开了特殊判题，但 data/%s/checker.cpp 不存在，评测会退回普通比对。"), prob.Name))
 		}
 	}
 	if len(warns) == 0 {
@@ -540,19 +540,19 @@ func (e *contestEditor) refreshSummary() {
 func modeLabelOf(mode string) string {
 	switch mode {
 	case subtaskAny:
-		return "任意通过"
+		return tr("任意通过")
 	case subtaskSum:
-		return "按比例给分"
+		return tr("按比例给分")
 	default:
-		return "捆绑（全部通过）"
+		return tr("捆绑（全部通过）")
 	}
 }
 
 func modeOfLabel(label string) string {
 	switch label {
-	case "任意通过":
+	case tr("任意通过"):
 		return subtaskAny
-	case "按比例给分":
+	case tr("按比例给分"):
 		return subtaskSum
 	default:
 		return subtaskAll
@@ -580,10 +580,10 @@ func positiveNumber(text string) error {
 	}
 	f, err := strconv.ParseFloat(text, 64)
 	if err != nil {
-		return fmt.Errorf("请输入数字")
+		return fmt.Errorf("%s", tr("请输入数字"))
 	}
 	if f < 0 {
-		return fmt.Errorf("不能为负数")
+		return fmt.Errorf("%s", tr("不能为负数"))
 	}
 	return nil
 }
@@ -642,7 +642,7 @@ func (p *contestPage) scheduleSave() {
 		})
 	}
 	if p.g != nil {
-		p.g.setStatus("配置修改中，稍后自动保存 ...")
+		p.g.setStatus(tr("配置修改中，稍后自动保存 ..."))
 	}
 }
 
@@ -657,13 +657,13 @@ func (p *contestPage) flushSave() {
 func (p *contestPage) persist() {
 	if err := p.c.save(); err != nil {
 		if p.g != nil {
-			p.g.showError(fmt.Errorf("保存配置失败：%v", err))
+			p.g.showError(fmt.Errorf(tr("保存配置失败：%v"), err))
 		}
 		return
 	}
 	p.warns = validateContest(p.c)
 	if p.g != nil {
-		p.g.setStatus("比赛配置已保存")
+		p.g.setStatus(tr("比赛配置已保存"))
 	}
 }
 
@@ -672,7 +672,7 @@ func (p *contestPage) refreshMeta() {
 	if p.meta == nil {
 		return
 	}
-	p.meta.SetText(fmt.Sprintf("%d 题 · %d 位选手 · %d 份提交 · 满分 %s · 并发 %d · %s",
+	p.meta.SetText(fmt.Sprintf(tr("%d 题 · %d 位选手 · %d 份提交 · 满分 %s · 并发 %d · %s"),
 		len(p.c.Cfg.Problems), len(p.c.Cfg.Players), len(p.c.Cfg.Sources),
 		fmtScore(totalFullScore(p.c)), contestParallelism(), p.c.Cfg.ImportedAt))
 }

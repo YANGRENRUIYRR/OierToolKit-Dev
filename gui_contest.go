@@ -79,7 +79,7 @@ func newContestPage(g *guiApp, c contest) *contestPage {
 	p.title.SizeName = theme.SizeNameSubHeadingText
 	p.meta = caption("")
 	p.meta.Wrapping = fyne.TextWrapWord
-	p.status = caption("准备就绪。")
+	p.status = caption(tr("准备就绪。"))
 	// 进度文字会带选手名与题目名，必须允许换行，否则长文本会把整页撑宽。
 	p.status.Wrapping = fyne.TextWrapWord
 	p.status.Truncation = fyne.TextTruncateEllipsis
@@ -196,13 +196,13 @@ func (p *contestPage) rescan() {
 	}
 	c.Cfg.Problems = problems
 	if err := c.save(); err != nil {
-		p.g.showError(fmt.Errorf("写入配置失败：%v", err))
+		p.g.showError(fmt.Errorf(tr("写入配置失败：%v"), err))
 		return
 	}
 	p.c = c
 	p.warns = validateContest(c)
 	p.reload()
-	p.g.setStatus(fmt.Sprintf("已重新扫描：%d 道题", len(problems)))
+	p.g.setStatus(fmt.Sprintf(tr("已重新扫描：%d 道题"), len(problems)))
 }
 
 // autoSubtasks 按测试点自动生成子任务：每个测试点一个 all 型子任务。
@@ -216,7 +216,7 @@ func (p *contestPage) autoSubtasks() {
 		var subs []contestSubtask
 		for j, t := range prob.Tests {
 			subs = append(subs, contestSubtask{
-				Name:  fmt.Sprintf("测试点 %s", t.ID),
+				Name:  fmt.Sprintf(tr("测试点 %s"), t.ID),
 				Score: t.Score,
 				Mode:  subtaskAll,
 				Tests: []string{t.ID},
@@ -226,12 +226,12 @@ func (p *contestPage) autoSubtasks() {
 		prob.Subtasks = subs
 	}
 	if err := c.save(); err != nil {
-		p.g.showError(fmt.Errorf("写入配置失败：%v", err))
+		p.g.showError(fmt.Errorf(tr("写入配置失败：%v"), err))
 		return
 	}
 	p.c = c
 	p.reload()
-	p.g.setStatus("已按测试点生成子任务")
+	p.g.setStatus(tr("已按测试点生成子任务"))
 }
 
 // fillScores 把每道题的满分补到 100（没有子任务时按测试点均分）。
@@ -260,12 +260,12 @@ func (p *contestPage) fillScores() {
 		}
 	}
 	if err := c.save(); err != nil {
-		p.g.showError(fmt.Errorf("写入配置失败：%v", err))
+		p.g.showError(fmt.Errorf(tr("写入配置失败：%v"), err))
 		return
 	}
 	p.c = c
 	p.reload()
-	p.g.setStatus("每道题的满分已归一化到 100 分")
+	p.g.setStatus(tr("每道题的满分已归一化到 100 分"))
 }
 
 // alive 判断页面的后台任务是否仍应更新界面。
@@ -289,12 +289,12 @@ func (p *contestPage) startJudge() {
 	p.flushSave()
 	c := p.c
 	if len(c.Cfg.Sources) == 0 {
-		p.g.showError(fmt.Errorf("这场比赛没有任何选手提交"))
+		p.g.showError(fmt.Errorf("%s", tr("这场比赛没有任何选手提交")))
 		return
 	}
 	for _, w := range p.warns {
-		if strings.Contains(w, "引用了不存在的测试点") {
-			p.g.showError(fmt.Errorf("配置里有问题，先修好子任务：%s", w))
+		if strings.Contains(w, tr("引用了不存在的测试点")) {
+			p.g.showError(fmt.Errorf(tr("配置里有问题，先修好子任务：%s"), w))
 			return
 		}
 	}
@@ -307,9 +307,9 @@ func (p *contestPage) startJudge() {
 	p.bar.SetValue(0)
 	p.bar.Show()
 	p.detail.SetText("")
-	p.detail.SetText(fmt.Sprintf("开始评测：%d 份提交，%d 并发\n", len(c.Cfg.Sources), contestParallelism()))
-	p.status.SetText("正在编译并评测 ...")
-	p.g.busy(true, "模拟赛评测中 ...")
+	p.detail.SetText(fmt.Sprintf(tr("开始评测：%d 份提交，%d 并发")+"\n", len(c.Cfg.Sources), contestParallelism()))
+	p.status.SetText(tr("正在编译并评测 ..."))
+	p.g.busy(true, tr("模拟赛评测中 ..."))
 
 	gen := p.gen
 	// isCancelled 是传给引擎的停止信号：编译与运行都会每 50ms 轮询它，
@@ -349,18 +349,18 @@ func (p *contestPage) startJudge() {
 			p.judgeBtn.Enable()
 
 			if cancelled {
-				p.status.SetText("已中断评测，本次结果未保存")
-				p.g.busy(false, "评测已中断")
+				p.status.SetText(tr("已中断评测，本次结果未保存"))
+				p.g.busy(false, tr("评测已中断"))
 				return
 			}
 			if err != nil {
-				p.status.SetText("评测失败")
-				p.g.busy(false, "评测失败")
+				p.status.SetText(tr("评测失败"))
+				p.g.busy(false, tr("评测失败"))
 				p.g.showError(err)
 				return
 			}
 			if err := saveContestResult(c, res); err != nil {
-				p.g.showError(fmt.Errorf("保存结果失败：%v", err))
+				p.g.showError(fmt.Errorf(tr("保存结果失败：%v"), err))
 			}
 			p.res, p.hasResult = res, true
 			p.bar.SetValue(1)
@@ -369,10 +369,10 @@ func (p *contestPage) startJudge() {
 			rows := buildRanking(c, res)
 			top := ""
 			if len(rows) > 0 {
-				top = fmt.Sprintf("，第一名 %s（%s 分）", rows[0].Player, fmtScore(rows[0].Total))
+				top = fmt.Sprintf(tr("，第一名 %s（%s 分）"), rows[0].Player, fmtScore(rows[0].Total))
 			}
-			p.status.SetText(fmt.Sprintf("评测完成：%d 位选手%s", len(rows), top))
-			p.g.busy(false, "模拟赛评测完成")
+			p.status.SetText(fmt.Sprintf(tr("评测完成：%d 位选手%s"), len(rows), top))
+			p.g.busy(false, tr("模拟赛评测完成"))
 		})
 	}()
 }
@@ -385,7 +385,7 @@ func (p *contestPage) stopJudge() {
 	}
 	p.cancel.Store(true)
 	p.stopBtn.Disable()
-	p.status.SetText("正在停止（结束当前进程）...")
+	p.status.SetText(tr("正在停止（结束当前进程）..."))
 }
 
 // refreshBoard 重建榜单表格，并回到顶部。
@@ -401,13 +401,13 @@ func (p *contestPage) refreshBoard() {
 // buildBoard 生成榜单区域：没有结果时给提示，有结果时给表格 + 明细。
 func (p *contestPage) buildBoard() fyne.CanvasObject {
 	if !p.hasResult {
-		tip := caption("还没有评测结果。点上方“开始评测”，或到“题目配置”检查子任务。")
+		tip := caption(tr("还没有评测结果。点上方“开始评测”，或到“题目配置”检查子任务。"))
 		tip.Alignment = fyne.TextAlignCenter
 		tip.Wrapping = fyne.TextWrapWord
 		return container.NewVBox(
 			container.NewGridWrap(fyne.NewSize(1, theme.Padding()), layout.NewSpacer()),
 			container.NewPadded(container.NewCenter(
-				widget.NewLabelWithStyle("尚未评测", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}))),
+				widget.NewLabelWithStyle(tr("尚未评测"), fyne.TextAlignCenter, fyne.TextStyle{Bold: true}))),
 			container.NewPadded(tip),
 		)
 	}
@@ -420,7 +420,7 @@ func (p *contestPage) buildBoard() fyne.CanvasObject {
 		// 概览文字允许换行，否则选手多时这一行自己就把内容顶得很宽。
 		// 顶部补一个 Padding()，和榜单页外层 Padded 的边距一致。
 		container.NewGridWrap(fyne.NewSize(1, theme.Padding()), layout.NewSpacer()),
-		wrappedCenter(fmt.Sprintf("共 %d 位选手 · %d 道题 · 满分 %s 分 · 评测于 %s",
+		wrappedCenter(fmt.Sprintf(tr("共 %d 位选手 · %d 道题 · 满分 %s 分 · 评测于 %s"),
 			len(rows), len(p.res.Problems), fmtScore(full), p.res.JudgedAt)),
 		passRateBars(passRates(c, p.res)),
 		// 表格不设宽高约束，统一交给外层 ScrollBoth 滚动。
@@ -431,9 +431,9 @@ func (p *contestPage) buildBoard() fyne.CanvasObject {
 		for _, w := range p.warns {
 			lines = append(lines, "· "+w)
 		}
-		items = append(items, wrappedCenter("配置提醒：\n"+strings.Join(lines, "\n")))
+		items = append(items, wrappedCenter(tr("配置提醒：")+"\n"+strings.Join(lines, "\n")))
 	}
-	items = append(items, widget.NewSeparator(), section("题目明细"))
+	items = append(items, widget.NewSeparator(), section(tr("题目明细")))
 	for i, name := range p.res.Problems {
 		if prob, ok := c.problemOf(name); ok {
 			if i > 0 {
@@ -458,7 +458,7 @@ func passRateBars(rates []passRate) fyne.CanvasObject {
 	}
 	// 标题用 canvas.Text 直接画：widget.Label 的最小高度含文本框上下留白，
 	// 会凭空在「通过率」上方撑出十几像素的空白。
-	title := canvas.NewText("通过率", theme.Color(theme.ColorNameForeground))
+	title := canvas.NewText(tr("通过率"), theme.Color(theme.ColorNameForeground))
 	title.TextStyle = fyne.TextStyle{Bold: true}
 	title.TextSize = theme.TextSize()
 	out := []fyne.CanvasObject{textLine(title)}
@@ -606,9 +606,9 @@ func wrappedCenter(text string) fyne.CanvasObject {
 // rankingTable 用 canvas 画一张对齐的榜单（Fyne 没有表格控件）。
 func (p *contestPage) rankingTable(rows []rankRow, full float64) fyne.CanvasObject {
 	c := p.c
-	headers := []string{"#", "选手"}
+	headers := []string{"#", tr("选手")}
 	headers = append(headers, p.res.Problems...)
-	headers = append(headers, "总分")
+	headers = append(headers, tr("总分"))
 
 	widths := []float32{44, 130}
 	for range p.res.Problems {
@@ -638,7 +638,7 @@ func (p *contestPage) rankingTable(rows []rankRow, full float64) fyne.CanvasObje
 func (p *contestPage) problemDetail(prob contestProblem, rows []rankRow) fyne.CanvasObject {
 	full := fullScoreOf(p.c, prob.Name)
 	title := widget.NewLabelWithStyle(
-		fmt.Sprintf("%s  满分 %s 分 · %d 个测试点", prob.Name, fmtScore(full), len(prob.Tests)),
+		fmt.Sprintf(tr("%s  满分 %s 分 · %d 个测试点"), prob.Name, fmtScore(full), len(prob.Tests)),
 		fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 
 	items := []fyne.CanvasObject{container.NewPadded(title)}
@@ -653,7 +653,7 @@ func (p *contestPage) problemDetail(prob contestProblem, rows []rankRow) fyne.Ca
 
 	// 子任务矩阵
 	if len(prob.Subtasks) > 0 {
-		headers := []string{"子任务", "判定", "分值"}
+		headers := []string{tr("子任务"), tr("判定"), tr("分值")}
 		widths := []float32{150, 84, 56}
 		for _, row := range rows {
 			headers = append(headers, row.Player)
@@ -690,7 +690,7 @@ func (p *contestPage) problemDetail(prob contestProblem, rows []rankRow) fyne.Ca
 
 	// 测试点矩阵
 	if len(prob.Tests) > 0 {
-		headers := []string{"测试点", "分值"}
+		headers := []string{tr("测试点"), tr("分值")}
 		widths := []float32{120, 56}
 		for _, row := range rows {
 			headers = append(headers, row.Player)
@@ -733,10 +733,10 @@ func (p *contestPage) problemDetail(prob contestProblem, rows []rankRow) fyne.Ca
 // exportHTML 弹保存框导出榜单页面。
 func (p *contestPage) exportHTML() {
 	if !p.hasResult {
-		p.g.showError(fmt.Errorf("还没有评测结果"))
+		p.g.showError(fmt.Errorf("%s", tr("还没有评测结果")))
 		return
 	}
-	def := sanitizeFileName(p.c.Cfg.Name) + "-排名.html"
+	def := sanitizeFileName(p.c.Cfg.Name) + tr("-排名.html")
 	save := dialog.NewFileSave(func(w fyne.URIWriteCloser, err error) {
 		if err != nil || w == nil {
 			return
@@ -745,18 +745,18 @@ func (p *contestPage) exportHTML() {
 		_ = w.Close()
 		path, err := exportContestHTML(p.c, p.res, outPath)
 		if err != nil {
-			p.g.showError(fmt.Errorf("导出失败：%v", err))
+			p.g.showError(fmt.Errorf(tr("导出失败：%v"), err))
 			return
 		}
-		p.g.setStatus("榜单已导出：" + path)
-		openTip := dialog.NewConfirm("导出成功", "榜单已写入：\n"+path+"\n\n要现在打开吗？", func(ok bool) {
+		p.g.setStatus(tr("榜单已导出：") + path)
+		openTip := dialog.NewConfirm(tr("导出成功"), tr("榜单已写入：")+"\n"+path+"\n\n"+tr("要现在打开吗？"), func(ok bool) {
 			if ok {
 				if err := openPath(filepath.Dir(path)); err != nil {
 					p.g.showError(err)
 				}
 			}
 		}, p.g.win)
-		openTip.SetConfirmText("打开所在目录")
+		openTip.SetConfirmText(tr("打开所在目录"))
 		openTip.Show()
 	}, p.g.win)
 	save.SetFileName(def)
@@ -766,10 +766,10 @@ func (p *contestPage) exportHTML() {
 // exportCSV 弹保存框导出榜单 CSV。
 func (p *contestPage) exportCSV() {
 	if !p.hasResult {
-		p.g.showError(fmt.Errorf("还没有评测结果"))
+		p.g.showError(fmt.Errorf("%s", tr("还没有评测结果")))
 		return
 	}
-	def := sanitizeFileName(p.c.Cfg.Name) + "-排名.csv"
+	def := sanitizeFileName(p.c.Cfg.Name) + tr("-排名.csv")
 	save := dialog.NewFileSave(func(w fyne.URIWriteCloser, err error) {
 		if err != nil || w == nil {
 			return
@@ -777,10 +777,10 @@ func (p *contestPage) exportCSV() {
 		_, werr := w.Write(rankingCSV(p.c, p.res))
 		_ = w.Close()
 		if werr != nil {
-			p.g.showError(fmt.Errorf("导出失败：%v", werr))
+			p.g.showError(fmt.Errorf(tr("导出失败：%v"), werr))
 			return
 		}
-		p.g.setStatus("榜单 CSV 已导出：" + w.URI().Path())
+		p.g.setStatus(tr("榜单 CSV 已导出：") + w.URI().Path())
 	}, p.g.win)
 	save.SetFileName(def)
 	save.Show()
@@ -867,5 +867,5 @@ func (g *guiApp) showContestList() {
 	}
 	g.detail.Objects = []fyne.CanvasObject{g.buildContestList()}
 	g.detail.Refresh()
-	g.setStatus("模拟赛")
+	g.setStatus(tr("模拟赛"))
 }

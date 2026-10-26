@@ -142,10 +142,10 @@ func (g *guiApp) maybeAskShortcut() {
 		return
 	}
 
-	msg := "要不要在桌面创建一个 OierToolKit 快捷方式？\n\n" +
-		"创建后双击图标即可直接打开图形界面，不必再敲命令。\n" +
-		"以后也可以在“设置”里随时创建或删除。"
-	d := dialog.NewConfirm("创建桌面快捷方式", msg, func(ok bool) {
+	msg := tr("要不要在桌面创建一个 OierToolKit 快捷方式？") + "\n\n" +
+		tr("创建后双击图标即可直接打开图形界面，不必再敲命令。") + "\n" +
+		tr("以后也可以在“设置”里随时创建或删除。")
+	d := dialog.NewConfirm(tr("创建桌面快捷方式"), msg, func(ok bool) {
 		// 先记下已询问，避免用户取消后每次启动都被追问。
 		_ = setGuiPrefBool(prefShortcutAsked, true)
 		if !ok {
@@ -153,8 +153,8 @@ func (g *guiApp) maybeAskShortcut() {
 		}
 		g.doCreateShortcut()
 	}, g.win)
-	d.SetConfirmText("创建")
-	d.SetDismissText("暂不创建")
+	d.SetConfirmText(tr("创建"))
+	d.SetDismissText(tr("暂不创建"))
 	d.Show()
 }
 
@@ -162,13 +162,13 @@ func (g *guiApp) maybeAskShortcut() {
 func (g *guiApp) doCreateShortcut() {
 	path, err := createDesktopShortcut()
 	if err != nil {
-		g.setStatus("创建快捷方式失败")
+		g.setStatus(tr("创建快捷方式失败"))
 		g.showError(err)
 		return
 	}
-	g.setStatus("桌面快捷方式已创建")
-	dialog.ShowInformation("创建成功",
-		"已在桌面创建快捷方式：\n"+path+"\n\n双击即可打开图形界面。", g.win)
+	g.setStatus(tr("桌面快捷方式已创建"))
+	dialog.ShowInformation(tr("创建成功"),
+		tr("已在桌面创建快捷方式：")+"\n"+path+"\n\n"+tr("双击即可打开图形界面。"), g.win)
 }
 
 // removeShortcut 删除桌面快捷方式。
@@ -180,20 +180,20 @@ func (g *guiApp) removeShortcut() {
 	}
 	path := shortcutPath(desktop)
 	if _, err := os.Stat(path); err != nil {
-		g.showError(fmt.Errorf("桌面上没有找到快捷方式"))
+		g.showError(fmt.Errorf("%s", tr("桌面上没有找到快捷方式")))
 		return
 	}
 	if err := os.Remove(path); err != nil {
 		g.showError(err)
 		return
 	}
-	g.setStatus("桌面快捷方式已删除")
+	g.setStatus(tr("桌面快捷方式已删除"))
 }
 
 // fullscreenLabel 生成全屏偏好的文案。
 func fullscreenLabel(on bool) string {
 	if on {
-		return "全屏启动"
+		return tr("全屏启动")
 	}
-	return "窗口化启动（恢复上次窗口大小与位置）"
+	return tr("窗口化启动（恢复上次窗口大小与位置）")
 }

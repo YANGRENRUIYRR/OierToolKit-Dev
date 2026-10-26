@@ -129,16 +129,16 @@ func codeStatsOf(src string) codeStats {
 	}
 
 	if cs.OpenBrace != 0 {
-		cs.Warnings = append(cs.Warnings, fmt.Sprintf("大括号不配对（差 %d 个）", cs.OpenBrace))
+		cs.Warnings = append(cs.Warnings, fmt.Sprintf(tr("大括号不配对（差 %d 个）"), cs.OpenBrace))
 	}
 	if cs.OpenParen != 0 {
-		cs.Warnings = append(cs.Warnings, fmt.Sprintf("圆括号不配对（差 %d 个）", cs.OpenParen))
+		cs.Warnings = append(cs.Warnings, fmt.Sprintf(tr("圆括号不配对（差 %d 个）"), cs.OpenParen))
 	}
 	if cs.OpenBrack != 0 {
-		cs.Warnings = append(cs.Warnings, fmt.Sprintf("方括号不配对（差 %d 个）", cs.OpenBrack))
+		cs.Warnings = append(cs.Warnings, fmt.Sprintf(tr("方括号不配对（差 %d 个）"), cs.OpenBrack))
 	}
 	if cs.FullWidth != "" {
-		cs.Warnings = append(cs.Warnings, fmt.Sprintf("第 %s 行疑似出现全角标点/汉字（常见于中文输入法），会导致编译错误", cs.FullWidth))
+		cs.Warnings = append(cs.Warnings, fmt.Sprintf(tr("第 %s 行疑似出现全角标点/汉字（常见于中文输入法），会导致编译错误"), cs.FullWidth))
 	}
 	return cs
 }
@@ -156,13 +156,13 @@ func isFullWidthPunct(r rune) bool {
 // statsSummary 生成一段可展示的统计摘要文本。
 func statsSummary(cs codeStats) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "行数 %d（非空 %d，注释 %d）    字符 %d / %d 字节\n\n",
+	fmt.Fprintf(&b, tr("行数 %d（非空 %d，注释 %d）    字符 %d / %d 字节\n\n"),
 		cs.Lines, cs.NonEmpty, cs.CommentLn, cs.Chars, cs.Bytes)
-	fmt.Fprintf(&b, "括号配对  { %d    ( %d    [ %d\n", cs.OpenBrace, cs.OpenParen, cs.OpenBrack)
+	fmt.Fprintf(&b, tr("括号配对  { %d    ( %d    [ %d\n"), cs.OpenBrace, cs.OpenParen, cs.OpenBrack)
 	if len(cs.Warnings) == 0 {
-		b.WriteString("\n没有发现问题。")
+		b.WriteString(tr("\n没有发现问题。"))
 	} else {
-		b.WriteString("\n⚠ 检查结果：")
+		b.WriteString(tr("\n⚠ 检查结果："))
 		for _, w := range cs.Warnings {
 			b.WriteString("\n  · " + w)
 		}

@@ -290,14 +290,14 @@ func cmdJudge(args []string) {
 
 	p := requireProject()
 	if !fileExists(p.sourcePath()) {
-		fatal("未找到 %s", p.codeName()+".cpp")
+		fatal(tr("未找到 %s"), p.codeName()+".cpp")
 	}
 	props := p.cfg()
 
-	fmt.Printf("编译 %s ... ", p.codeName()+".cpp")
+	fmt.Printf(tr("编译 %s ... "), p.codeName()+".cpp")
 	log, ok := compileProjectTo(p.sourcePath(), p.exePath(), props)
 	if !ok {
-		fmt.Fprintf(os.Stderr, "%s[CE] 编译失败%s\n", red, reset)
+		fmt.Fprintf(os.Stderr, tr("%s[CE] 编译失败%s\n"), red, reset)
 		fmt.Fprint(os.Stderr, log)
 		otkExit(1)
 	}
@@ -306,7 +306,7 @@ func cmdJudge(args []string) {
 
 	checkerExe, ceLog, checkerOK := prepareChecker(p, props)
 	if !checkerOK {
-		fmt.Fprintf(os.Stderr, "%s[CE] checker 编译失败%s\n", red, reset)
+		fmt.Fprintf(os.Stderr, tr("%s[CE] checker 编译失败%s\n"), red, reset)
 		fmt.Fprint(os.Stderr, ceLog)
 		otkExit(1)
 	}
@@ -316,23 +316,23 @@ func cmdJudge(args []string) {
 	if len(only) > 0 {
 		index = filterIndex(index, only)
 		if len(index) == 0 {
-			fatal("没有匹配的样例")
+			fatal(tr("没有匹配的样例"))
 		}
 	}
 	if len(index) == 0 {
-		fatal("无样例（放入 .in 与 .out/.ans 后运行 otk refresh）")
+		fatal(tr("无样例（放入 .in 与 .out/.ans 后运行 otk refresh）"))
 	}
 
 	threads := judgeThreads(props)
 	threadNote := ""
 	if threads > 1 {
-		threadNote = fmt.Sprintf(" · %d 线程", threads)
+		threadNote = fmt.Sprintf(tr(" · %d 线程"), threads)
 	}
 	spjNote := ""
 	if checkerExe != "" {
-		spjNote = " · 特殊判题"
+		spjNote = tr(" · 特殊判题")
 	}
-	fmt.Printf("评测 %s (%.2fs / %.0fMB%s%s)\n", p.codeName(), timeLimit, memLimit, threadNote, spjNote)
+	fmt.Printf(tr("评测 %s (%.2fs / %.0fMB%s%s)\n"), p.codeName(), timeLimit, memLimit, threadNote, spjNote)
 
 	job := judgeJob{
 		ExePath:   p.exePath(),
@@ -354,7 +354,7 @@ func cmdJudge(args []string) {
 	rep.Warnings = warnings
 
 	if len(warnings) > 0 {
-		fmt.Printf("%s编译警告 %d 条%s\n", yellow, len(warnings), reset)
+		fmt.Printf(tr("%s编译警告 %d 条%s\n"), yellow, len(warnings), reset)
 		if verbose {
 			for _, w := range warnings {
 				printIndented(w, "  ")
@@ -379,7 +379,7 @@ func filterIndex(index, want []string) []string {
 	}
 	for _, id := range want {
 		if !inIndex[id] {
-			fatal("样例 #%s 不存在（可用: %s）", id, strings.Join(index, " "))
+			fatal(tr("样例 #%s 不存在（可用: %s）"), id, strings.Join(index, " "))
 		}
 	}
 	var kept []string
@@ -410,7 +410,7 @@ func printJudgePoint(pt pointResult, width int, timeLimit float64, verbose bool)
 	metrics := fmt.Sprintf("%dms %s", pt.WallMS, memStr(pt))
 	switch pt.Verdict {
 	case verdictMissing:
-		fmt.Printf("  #%-*s %s缺失%s\n", width, pt.ID, yellow, reset)
+		fmt.Printf(tr("  #%-*s %s缺失%s\n"), width, pt.ID, yellow, reset)
 	case verdictTLE:
 		fmt.Printf("  #%-*s %sTLE%s >%.0fms\n", width, pt.ID, red, reset, timeLimit*1000)
 	case verdictRE:
@@ -438,11 +438,11 @@ func printJudgePoint(pt pointResult, width int, timeLimit float64, verbose bool)
 func cmdRun() {
 	p := requireProject()
 	if !fileExists(p.sourcePath()) {
-		fatal("未找到 %s", p.codeName()+".cpp")
+		fatal(tr("未找到 %s"), p.codeName()+".cpp")
 	}
 	props := p.cfg()
 
-	fmt.Printf("编译 %s ... ", p.codeName()+".cpp")
+	fmt.Printf(tr("编译 %s ... "), p.codeName()+".cpp")
 	if !compileProject(p.sourcePath(), p.exePath(), props) {
 		otkExit(1)
 	}
@@ -454,14 +454,14 @@ func cmdRun() {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		fatal("运行失败: %v", err)
+		fatal(tr("运行失败: %v"), err)
 	}
 }
 
 func cmdDebug() {
 	p := requireProject()
 	if !fileExists(p.exePath()) {
-		fatal("未找到可执行文件，先运行 otk run 或 otk judge")
+		fatal(tr("未找到可执行文件，先运行 otk run 或 otk judge"))
 	}
 
 	cmd := exec.Command("gdb", "--args", p.exePath())
@@ -470,8 +470,8 @@ func cmdDebug() {
 	cmd.Stderr = os.Stderr
 	cmd.Dir = p.Dir
 	if err := cmd.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "%s启动 gdb 失败: %v%s\n", red, err, reset)
-		fmt.Fprintln(os.Stderr, yellow+"提示: 请确保 gdb 已安装并在 PATH 中"+reset)
+		fmt.Fprintf(os.Stderr, tr("%s启动 gdb 失败: %v%s\n"), red, err, reset)
+		fmt.Fprintln(os.Stderr, yellow+tr("提示: 请确保 gdb 已安装并在 PATH 中")+reset)
 		otkExit(1)
 	}
 }
@@ -479,14 +479,14 @@ func cmdDebug() {
 func cmdEdit() {
 	p := requireProject()
 	if !fileExists(p.sourcePath()) {
-		fatal("未找到 %s", p.codeName()+".cpp")
+		fatal(tr("未找到 %s"), p.codeName()+".cpp")
 	}
 
 	editor := propsOr(readIni(globalConfigPath()), "editor", defaultEditorCommand())
 
 	parts := splitQuoted(fmt.Sprintf(editor, p.sourcePath()))
 	if len(parts) == 0 {
-		fatal("无效的编辑器命令")
+		fatal(tr("无效的编辑器命令"))
 	}
 
 	cmd := exec.Command(parts[0], parts[1:]...)
@@ -495,7 +495,7 @@ func cmdEdit() {
 	cmd.Stderr = os.Stderr
 	cmd.Dir = p.Dir
 	if err := cmd.Run(); err != nil {
-		fatal("打开编辑器 %s 失败: %v", parts[0], err)
+		fatal(tr("打开编辑器 %s 失败: %v"), parts[0], err)
 	}
 }
 
@@ -597,7 +597,7 @@ func compileProject(srcPath, exePath string, props map[string]string) bool {
 	var errBuf strings.Builder
 	cmd.Stderr = &errBuf
 	if err := cmd.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "%s[CE] 编译失败%s\n", red, reset)
+		fmt.Fprintf(os.Stderr, tr("%s[CE] 编译失败%s\n"), red, reset)
 		fmt.Fprint(os.Stderr, errBuf.String())
 		return false
 	}
@@ -618,8 +618,8 @@ func memStr(pt pointResult) string {
 }
 
 func printDiff(stdOut, userOut string) {
-	fmt.Printf("    %s期望%s %s\n", green, reset, strings.ReplaceAll(strings.TrimRight(stdOut, "\n"), "\n", "\n    "))
-	fmt.Printf("    %s实际%s %s\n", red, reset, strings.ReplaceAll(strings.TrimRight(userOut, "\n"), "\n", "\n    "))
+	fmt.Printf(tr("    %s期望%s %s\n"), green, reset, strings.ReplaceAll(strings.TrimRight(stdOut, "\n"), "\n", "\n    "))
+	fmt.Printf(tr("    %s实际%s %s\n"), red, reset, strings.ReplaceAll(strings.TrimRight(userOut, "\n"), "\n", "\n    "))
 }
 
 func firstLines(s string, n int) string {

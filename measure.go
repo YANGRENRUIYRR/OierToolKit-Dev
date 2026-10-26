@@ -182,7 +182,7 @@ func runMeasuredStopped(exePath, inPath, workDir string, timeLimitSec, memLimitM
 		if err == nil {
 			stdout = string(data)
 		} else if fio.Out != "" {
-			stderr += "\n[otk] 程序未写出 " + fio.Out
+			stderr += tr("\n[otk] 程序未写出 ") + fio.Out
 		}
 	}
 
