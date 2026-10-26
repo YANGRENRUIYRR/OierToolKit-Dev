@@ -473,8 +473,14 @@ func passRateBars(rates []passRate) fyne.CanvasObject {
 	}
 	// 末尾留一段纯空白（不是分隔线），与下方榜单表格分开。
 	out = append(out, container.NewGridWrap(fyne.NewSize(1, theme.Padding()), layout.NewSpacer()))
-	return container.NewVBox(out...)
+	block := container.NewVBox(out...)
+	// 整块限宽：Border 会把进度条拉满剩余宽度，不设上限时窗口一宽条就长得离谱。
+	// 高度必须取内容实际高度，写 0 会让 GridWrap 真的缩成 0 高并把子项叠在一起。
+	return container.NewGridWrap(fyne.NewSize(passRateBlockW, block.MinSize().Height), block)
 }
+
+// passRateBlockW 是通过率区块的最大宽度，与评测进度条一致。
+const passRateBlockW = 560
 
 // textLine 把一段 canvas.Text 包成只占文字实际高度的组件。
 // 用它代替 widget.Label 当小标题，可以避免 Label 自带的行内留白。
