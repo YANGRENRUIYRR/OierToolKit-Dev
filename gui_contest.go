@@ -446,34 +446,33 @@ func (p *contestPage) buildBoard() fyne.CanvasObject {
 }
 
 // passRateBars 生成每道题的满分率进度条行（题名 + 条 + 百分比）。
-// 整块固定宽度：榜单外层是双向 Scroll，表格会把整个 VBox 撑到上千像素宽，
-// 不限宽的话进度条会跟着拉满、被迫横向滚动才能看全。
-//
-// 高度必须与 MinSize 完全一致：GridWrap 顶部对齐，格子哪怕只高一点，
-// 落差也会全部堆到最上面，看起来就是标题上方一大块空白。
+// 逐行用 GridWrap 定宽定高，不再把整块包进一个大 GridWrap：那个容器
+// 顶部对齐，高度稍有不符落差就全堆到标题上方，怎么算都会有空白。
 func passRateBars(rates []passRate) fyne.CanvasObject {
 	if len(rates) == 0 {
 		return nil
 	}
-	// 标题不复用 section()：那会额外带一条分隔线，把高度算多、顶部出空。
+	const blockW = 640
+
 	title := widget.NewLabelWithStyle("通过率", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	box := container.NewVBox(title)
+	out := []fyne.CanvasObject{
+		container.NewGridWrap(fyne.NewSize(blockW, title.MinSize().Height), title),
+	}
 	for _, pr := range rates {
 		bar := widget.NewProgressBar()
 		bar.SetValue(pr.Rate())
 		bar.TextFormatter = func() string {
 			return fmt.Sprintf("%d/%d（%.0f%%）", pr.Solved, pr.Players, pr.Rate()*100)
 		}
-		box.Add(container.NewBorder(nil, nil,
+		row := container.NewBorder(nil, nil,
 			container.NewGridWrap(fyne.NewSize(90, 30), widget.NewLabel(pr.Problem)),
 			nil, bar,
-		))
+		)
+		out = append(out, container.NewGridWrap(fyne.NewSize(blockW, 30), row))
 	}
-	// 末尾留两道空行，与下方榜单表格拉开距离。
-	box.Add(widget.NewSeparator())
-	box.Add(widget.NewSeparator())
-	ms := box.MinSize()
-	return container.NewGridWrap(fyne.NewSize(640, ms.Height), box)
+	// 末尾一条空行，与下方榜单表格分开。
+	out = append(out, container.NewGridWrap(fyne.NewSize(blockW, 12), widget.NewSeparator()))
+	return container.NewVBox(out...)
 }
 
 // wrappedCenter 生成一段居中的可换行说明文字。
