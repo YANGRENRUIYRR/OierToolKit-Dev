@@ -463,10 +463,10 @@ func passRateBars(rates []passRate) fyne.CanvasObject {
 	title.TextStyle = fyne.TextStyle{Bold: true}
 	title.TextSize = theme.TextSize()
 	// 标题上方不留 spacer（0px）：概览行和标题都是紧凑的 singleText（高度只报
-	// 字号，见 textLineH），两行行盒之间不留任何空隙。canvas.Text 自己还会把
-	// 首行字形画在行盒顶下方约 10px 处，所以肉眼看到的间距仍然存在，只是
-	// 这部分来自字体 ascent，不是布局空白。
-	out := []fyne.CanvasObject{textLine(title)}
+	// 字号，见 textLineH），两行行盒之间没有布局空隙。剩下的视觉间距全部来自
+	// canvas.Text 把字形画在行盒顶下方约 10px 的字体 ascent，布局减不掉，
+	// 所以这里把标题字形额外上移 passRateTitleNudgeY，把这段 ascent 抵消掉一部分。
+	out := []fyne.CanvasObject{textLineNudge(title, passRateTitleNudgeY)}
 	for _, pr := range rates {
 		bar := newSlimBar(pr.Rate())
 		info := caption(fmt.Sprintf("%d/%d（%.0f%%）", pr.Solved, pr.Players, pr.Rate()*100))
@@ -492,6 +492,14 @@ func passRateBars(rates []passRate) fyne.CanvasObject {
 
 // passRateBlockW 是通过率区块的最大宽度，与评测进度条一致。
 const passRateBlockW = 560
+
+// passRateTitleNudgeY 是「通过率」标题字形的额外纵向偏移（负值上移，0 = 居中）。
+// 行盒之间本身是 0 间距，剩下的视觉间距来自 canvas.Text 的行距留白。
+// 注意：修好 singleText 的 Layout 之后，canvas.Text 会被正确居中，每行自动比
+// 之前上提约 2.5px，两行合计让标题行整体上移了约 5px——此时再叠 -4px 只剩
+// 3px 净空，两行会黏在一起，所以这里归零，实测净空 7px（原来 12px）。
+// 想更紧就调成负数（-1 → 6px，-2 → 5px），别超过 -6，否则字形会压到上一行。
+const passRateTitleNudgeY = 0
 
 // maxWidthBars 只压缩内容的横向宽度，纵向完全跟着内容走。
 // 做成 wrapper 而不是 GridWrap：GridWrap 用固定的格子尺寸排版，格子比
@@ -540,12 +548,28 @@ func (r *barsRenderer) Destroy() {}
 // textLine 把一段 canvas.Text 包成只占文字实际高度的组件。
 // 用它代替 widget.Label 当小标题，可以避免 Label 自带的行内留白。
 func textLine(t *canvas.Text) fyne.CanvasObject {
-	return &singleText{t: t}
+	return newSingleText(t, 0)
+}
+
+// textLineNudge 同上，但把字形在行盒内额外上移/下移 dy 像素。
+// 负值 = 上移，用于压缩和上一行之间的视觉间距（字体 ascent 是布局算不掉的）。
+func textLineNudge(t *canvas.Text, dy float32) fyne.CanvasObject {
+	return newSingleText(t, dy)
+}
+
+func newSingleText(t *canvas.Text, nudge float32) *singleText {
+	s := &singleText{t: t, nudge: nudge}
+	// BaseWidget 必须绑定自身实现，否则 Resize 不会触发渲染器的 Layout，
+	// 内部 canvas.Text 的尺寸和位置就永远停在初始值，nudge 也就无从生效。
+	s.ExtendBaseWidget(s)
+	return s
 }
 
 type singleText struct {
 	widget.BaseWidget
 	t *canvas.Text
+	// nudge 是字形在行盒内的额外纵向偏移，0 表示按行盒居中。
+	nudge float32
 }
 
 func (s *singleText) CreateRenderer() fyne.WidgetRenderer {
@@ -581,16 +605,17 @@ func textRow(text string, col color.Color, sizeName fyne.ThemeSizeName, bold boo
 	t.TextSize = theme.Size(sizeName)
 	t.TextStyle = fyne.TextStyle{Bold: bold}
 	t.Alignment = fyne.TextAlignCenter
-	return &singleText{t: t}
+	return newSingleText(t, 0)
 }
 
 type singleTextRenderer struct{ s *singleText }
 
 func (r *singleTextRenderer) Layout(size fyne.Size) {
-	// 文字按自身高度贴顶，剩余高度不参与分配。
+	// 宽度撑满行盒，让 canvas.Text 自己做水平居中（它按 size.Width 算偏移）；
+	// 高度取文字本身的行高，再叠加调用方要求的 nudge。
 	h := r.s.t.MinSize().Height
 	r.s.t.Resize(fyne.NewSize(size.Width, h))
-	r.s.t.Move(fyne.NewPos(0, (size.Height-h)/2))
+	r.s.t.Move(fyne.NewPos(0, (size.Height-h)/2+r.s.nudge))
 }
 
 func (r *singleTextRenderer) MinSize() fyne.Size { return r.s.MinSize() }
@@ -598,7 +623,8 @@ func (r *singleTextRenderer) MinSize() fyne.Size { return r.s.MinSize() }
 func (r *singleTextRenderer) Objects() []fyne.CanvasObject { return []fyne.CanvasObject{r.s.t} }
 
 func (r *singleTextRenderer) Refresh() {
-	r.s.t.Color = theme.Color(theme.ColorNameForeground)
+	// 只重绘，不要在这里改颜色：颜色（比如概览行的灰色）是构造时定死的，
+	// 覆盖成前景色会让灰字变黑。
 	canvas.Refresh(r.s.t)
 }
 
