@@ -470,8 +470,8 @@ func passRateBars(rates []passRate) fyne.CanvasObject {
 		)
 		out = append(out, container.NewGridWrap(fyne.NewSize(blockW, 30), row))
 	}
-	// 末尾一条空行，与下方榜单表格分开。
-	out = append(out, container.NewGridWrap(fyne.NewSize(blockW, 12), widget.NewSeparator()))
+	// 末尾留一段纯空白（不是分隔线），与下方榜单表格分开。
+	out = append(out, container.NewGridWrap(fyne.NewSize(blockW, 14), layout.NewSpacer()))
 	return container.NewVBox(out...)
 }
 
