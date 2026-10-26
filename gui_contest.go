@@ -448,11 +448,11 @@ func (p *contestPage) buildBoard() fyne.CanvasObject {
 // passRateBars 生成每道题的满分率进度条行（题名 + 条 + 百分比）。
 // 整块固定宽度：榜单外层是双向 Scroll，表格会把整个 VBox 撑到上千像素宽，
 // 不限宽的话进度条会跟着拉满、被迫横向滚动才能看全。
-// 高度按内容精确计算：给大了会在标题上方留出一块空白。
 func passRateBars(rates []passRate) fyne.CanvasObject {
 	if len(rates) == 0 {
 		return nil
 	}
+	// 标题与行都包一层紧凑容器，不再额外 Padded，避免顶部堆出空白。
 	box := container.NewVBox(section("通过率"))
 	for _, pr := range rates {
 		bar := widget.NewProgressBar()
@@ -467,8 +467,10 @@ func passRateBars(rates []passRate) fyne.CanvasObject {
 	}
 	// 末行之后再留一个空行，把通过率与下面的榜单表格分开。
 	box.Add(widget.NewSeparator())
-	height := box.MinSize().Height
-	return container.NewGridWrap(fyne.NewSize(640, height), box)
+	// 高度必须正好等于 MinSize：GridWrap 会把内容挪到格子顶部，格子比
+	// 内容高多少，就全变成标题上方的空白；短了又会被裁掉最后一行。
+	ms := box.MinSize()
+	return container.NewGridWrap(fyne.NewSize(640, ms.Height), box)
 }
 
 // wrappedCenter 生成一段居中的可换行说明文字。
