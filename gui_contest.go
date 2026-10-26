@@ -446,19 +446,22 @@ func (p *contestPage) buildBoard() fyne.CanvasObject {
 }
 
 // passRateBars 生成每道题的满分率进度条行（题名 + 条 + 百分比）。
-// 逐行用 GridWrap 定宽定高，不再把整块包进一个大 GridWrap：那个容器
-// 顶部对齐，高度稍有不符落差就全堆到标题上方，怎么算都会有空白。
+// 外层刻意不套任何 GridWrap/Padded：GridWrap 会按格子高度顶部对齐，
+// 一格高度对不上就把落差全变成「通过率」标题上方的大片空白；VBox 只
+// 按各子项 MinSize 自上而下排，是最没有惊喜的布局方式。
 func passRateBars(rates []passRate) fyne.CanvasObject {
 	if len(rates) == 0 {
 		return nil
 	}
-	const blockW = 640
-
-	title := widget.NewLabelWithStyle("通过率", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	out := []fyne.CanvasObject{title}
+	// 标题用 canvas.Text 直接画：widget.Label 的最小高度含文本框上下留白，
+	// 会凭空在「通过率」上方撑出十几像素的空白。
+	title := canvas.NewText("通过率", theme.Color(theme.ColorNameForeground))
+	title.TextStyle = fyne.TextStyle{Bold: true}
+	title.TextSize = theme.TextSize()
+	out := []fyne.CanvasObject{textLine(title)}
 	for _, pr := range rates {
 		bar := newSlimBar(pr.Rate())
-		info := widget.NewLabel(fmt.Sprintf("%d/%d（%.0f%%）", pr.Solved, pr.Players, pr.Rate()*100))
+		info := caption(fmt.Sprintf("%d/%d（%.0f%%）", pr.Solved, pr.Players, pr.Rate()*100))
 		name := widget.NewLabel(pr.Problem)
 		// 题名在左、数字在右，都套 Center 让文字在整行高度里垂直居中。
 		row := container.NewBorder(nil, nil,
@@ -469,12 +472,49 @@ func passRateBars(rates []passRate) fyne.CanvasObject {
 		out = append(out, row)
 	}
 	// 末尾留一段纯空白（不是分隔线），与下方榜单表格分开。
-	out = append(out, container.NewGridWrap(fyne.NewSize(blockW, 14), layout.NewSpacer()))
-	block := container.NewVBox(out...)
-	// 用定宽格子把整块限在 blockW 宽（和评测进度一致），高度取内容实际
-	// MinSize，逐像素贴合就不会再产生上下空白。
-	return container.NewGridWrap(fyne.NewSize(blockW, block.MinSize().Height), block)
+	out = append(out, container.NewGridWrap(fyne.NewSize(1, theme.Padding()), layout.NewSpacer()))
+	return container.NewVBox(out...)
 }
+
+// textLine 把一段 canvas.Text 包成只占文字实际高度的组件。
+// 用它代替 widget.Label 当小标题，可以避免 Label 自带的行内留白。
+func textLine(t *canvas.Text) fyne.CanvasObject {
+	return &singleText{t: t}
+}
+
+type singleText struct {
+	widget.BaseWidget
+	t *canvas.Text
+}
+
+func (s *singleText) CreateRenderer() fyne.WidgetRenderer {
+	return &singleTextRenderer{s: s}
+}
+
+func (s *singleText) MinSize() fyne.Size {
+	// 宽度给 0 让 VBox 把它撑满整行（否则标题会紧贴左侧且不参与横向拉伸）。
+	return fyne.NewSize(0, s.t.TextSize*1.4)
+}
+
+type singleTextRenderer struct{ s *singleText }
+
+func (r *singleTextRenderer) Layout(size fyne.Size) {
+	// 文字按自身高度贴顶，剩余高度不参与分配。
+	h := r.s.t.MinSize().Height
+	r.s.t.Resize(fyne.NewSize(size.Width, h))
+	r.s.t.Move(fyne.NewPos(0, (size.Height-h)/2))
+}
+
+func (r *singleTextRenderer) MinSize() fyne.Size { return r.s.MinSize() }
+
+func (r *singleTextRenderer) Objects() []fyne.CanvasObject { return []fyne.CanvasObject{r.s.t} }
+
+func (r *singleTextRenderer) Refresh() {
+	r.s.t.Color = theme.Color(theme.ColorNameForeground)
+	canvas.Refresh(r.s.t)
+}
+
+func (r *singleTextRenderer) Destroy() {}
 
 // slimBar 是自绘的细进度条：Fyne 的 widget.ProgressBar 最小高度约 36，
 // 强行压矮会留下错位空白，所以这里自己画背景、填充和居中文字。
@@ -549,7 +589,9 @@ func wrappedCenter(text string) fyne.CanvasObject {
 	l := caption(text)
 	l.Alignment = fyne.TextAlignCenter
 	l.Wrapping = fyne.TextWrapWord
-	return container.NewPadded(l)
+	// 不要套 NewPadded：本主题 Padding()=5，上下各加 5 后这一行会从 32 长到
+	// 42，视觉上就像「通过率」上方突然空了一行。
+	return l
 }
 
 // rankingTable 用 canvas 画一张对齐的榜单（Fyne 没有表格控件）。
