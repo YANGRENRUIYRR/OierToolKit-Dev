@@ -42,6 +42,7 @@ type overviewPage struct {
 	source  *widget.Label
 	count   *widget.Label
 	remote  *widget.Label
+	compSel *widget.Select
 	timeIn  *widget.Entry
 	memIn   *widget.Entry
 	langSel *widget.Select
@@ -59,6 +60,7 @@ type overviewPage struct {
 }
 
 var languageOptions = []string{"c++11", "c++14", "c++17", "c++20", "c++23"}
+var cLanguageOptions = []string{"c89", "c99", "c11", "c17"}
 
 func newOverviewPage(pg *projectPage) *overviewPage {
 	o := &overviewPage{pg: pg}
@@ -75,6 +77,21 @@ func newOverviewPage(pg *projectPage) *overviewPage {
 	o.memIn.SetPlaceHolder("125")
 
 	o.langSel = widget.NewSelect(languageOptions, func(string) { o.markDirty() })
+
+	// 编译器：g++（C++）或 gcc（C，源码按 C 编译并链接 -lm）。
+	o.compSel = widget.NewSelect([]string{"g++", "gcc"}, func(v string) {
+		if !o.loading {
+			o.langSel.SetOptions(o.langOptionsFor(v))
+			if !containsString(o.langOptionsFor(v), o.langSel.Selected) {
+				if v == "gcc" {
+					o.langSel.SetSelected("c17")
+				} else {
+					o.langSel.SetSelected("c++17")
+				}
+			}
+		}
+		o.markDirty()
+	})
 	o.o2 = widget.NewCheck("开启 -O2 优化", func(bool) { o.markDirty() })
 	o.timeIn.OnChanged = func(string) { o.markDirty() }
 	o.memIn.OnChanged = func(string) { o.markDirty() }
@@ -132,6 +149,7 @@ func newOverviewPage(pg *projectPage) *overviewPage {
 	form := widget.NewForm(
 		widget.NewFormItem("时限（秒）", o.timeIn),
 		widget.NewFormItem("内存（MB）", o.memIn),
+		widget.NewFormItem("编译器", o.compSel),
 		widget.NewFormItem("语言标准", o.langSel),
 		widget.NewFormItem("优化", o.o2),
 		widget.NewFormItem("编译参数", o.cflags),
@@ -183,12 +201,14 @@ func (o *overviewPage) reload() {
 	o.timeIn.SetText(propsOr(props, "time_limit", "1.00"))
 	o.memIn.SetText(propsOr(props, "memory_limit", "125"))
 
+	compiler := compilerOf(props)
+	o.compSel.SetSelected(compiler)
 	version := propsOr(props, "version", "c++17")
-	if !containsString(languageOptions, version) {
-		o.langSel.SetOptions(append(languageOptions, version))
-	} else {
-		o.langSel.SetOptions(languageOptions)
+	options := o.langOptionsFor(compiler)
+	if !containsString(options, version) {
+		options = append(append([]string{}, options...), version)
 	}
+	o.langSel.SetOptions(options)
 	o.langSel.SetSelected(version)
 	o.o2.SetChecked(propsOr(props, "o2", "1") == "1")
 	o.cflags.SetText(props["cflags"])
@@ -213,6 +233,14 @@ func (o *overviewPage) reload() {
 		o.remote.SetText("未配置远端。可用“从网站添加题目”自动写入，或手动填写地址与题号。")
 	}
 	o.note.SetText("配置修改后自动保存。")
+}
+
+// langOptionsFor 返回编译器对应的语言标准选项。
+func (o *overviewPage) langOptionsFor(compiler string) []string {
+	if compiler == "gcc" {
+		return cLanguageOptions
+	}
+	return languageOptions
 }
 
 // markDirty 由各控件回调调用：去抖后自动落盘（与模拟赛配置一致）。
@@ -252,6 +280,9 @@ func (o *overviewPage) autoSave() {
 	}
 	if o.langSel.Selected != "" {
 		write("version", o.langSel.Selected)
+	}
+	if o.compSel.Selected != "" {
+		write("compiler", o.compSel.Selected)
 	}
 	if o.o2.Checked {
 		write("o2", "on")

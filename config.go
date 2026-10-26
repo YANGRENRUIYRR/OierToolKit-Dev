@@ -123,9 +123,10 @@ func showConfig() {
 	} else {
 		o2 = "off"
 	}
-	fmt.Printf("time=%ss memory=%sMB version=%s o2=%s\n",
+	fmt.Printf("time=%ss memory=%sMB compiler=%s version=%s o2=%s\n",
 		propsOr(props, "time_limit", "1.00"),
 		propsOr(props, "memory_limit", "125"),
+		compilerOf(props),
 		propsOr(props, "version", "c++17"),
 		o2)
 	if propsOr(props, "io_mode", "") == "file" {
@@ -225,6 +226,18 @@ func setProjectConfig(p project, item, value string) (string, error) {
 		props["version"] = value
 		msg = fmt.Sprintf("version=%s", value)
 
+	case "compiler", "cc":
+		switch strings.ToLower(strings.TrimSpace(value)) {
+		case "g++", "cpp", "c++":
+			props["compiler"] = "g++"
+			msg = "compiler=g++"
+		case "gcc", "c":
+			props["compiler"] = "gcc"
+			msg = "compiler=gcc（源码按 C 编译）"
+		default:
+			return "", fmt.Errorf("compiler 只支持 g++ 或 gcc")
+		}
+
 	case "o2":
 		switch strings.ToLower(value) {
 		case "on", "true", "1":
@@ -314,7 +327,7 @@ func setProjectConfig(p project, item, value string) (string, error) {
 		msg = fmt.Sprintf("remote_id=%s", value)
 
 	default:
-		return "", fmt.Errorf("未知配置项 '%s'（项目: time/memory/version/o2/threads/io/io_in/io_out/cflags/spj/remote_base/remote_id；全局: editor/remote/remote_token；远端管理: otk config remote ls|add|token|rm）", item)
+		return "", fmt.Errorf("未知配置项 '%s'（项目: time/memory/version/compiler/o2/threads/io/io_in/io_out/cflags/spj/remote_base/remote_id；全局: editor/remote/remote_token；远端管理: otk config remote ls|add|token|rm）", item)
 	}
 
 	writeIni(p.configPath(), props)

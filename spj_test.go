@@ -159,3 +159,21 @@ func TestCompileArgsCflags(t *testing.T) {
 		t.Fatal("cflags 应按参数拆分而不是作为单个参数传递")
 	}
 }
+
+// TestCompileArgsGcc 验证 gcc 模式：按 C 编译、缺省标准 c17、链接 -lm。
+func TestCompileArgsGcc(t *testing.T) {
+	props := map[string]string{"compiler": "gcc", "version": "c++17"}
+	args := compileArgs("a.cpp", "a.exe", props)
+	if !containsString(args, "-std=c17") || containsString(args, "-std=c++17") {
+		t.Fatalf("gcc 模式应把 c++ 标准换为 c17: %v", args)
+	}
+	if !containsString(args, "-x") || !containsString(args, "c") || !containsString(args, "-lm") {
+		t.Fatalf("gcc 模式缺少 -x c / -lm: %v", args)
+	}
+	if compilerOf(props) != "gcc" {
+		t.Fatalf("compilerOf 错误: %s", compilerOf(props))
+	}
+	if compilerOf(map[string]string{}) != "g++" {
+		t.Fatal("缺省编译器应为 g++")
+	}
+}

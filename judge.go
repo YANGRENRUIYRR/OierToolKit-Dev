@@ -508,10 +508,27 @@ func exePathIn(dir, name string) string {
 	return exe
 }
 
-// compileArgs 依据项目配置组装 g++ 参数：语言标准、O2、用户自定义额外
-// 参数（cflags，如 "-Wall"）与调试信息。
+// compilerOf 返回项目使用的编译器：gcc 或 g++（默认）。
+func compilerOf(props map[string]string) string {
+	if propsOr(props, "compiler", "g++") == "gcc" {
+		return "gcc"
+	}
+	return "g++"
+}
+
+// compileArgs 依据项目配置组装编译参数：语言标准、O2、用户自定义额外
+// 参数（cflags，如 "-Wall"）与调试信息。gcc 模式下源码按 C 编译
+// （-x c），版本缺省换为 c17，并链接 -lm。
 func compileArgs(srcPath, exePath string, props map[string]string) []string {
-	args := []string{"-std=" + propsOr(props, "version", "c++17")}
+	compiler := compilerOf(props)
+	version := propsOr(props, "version", "c++17")
+	if compiler == "gcc" && strings.HasPrefix(version, "c++") {
+		version = "c17"
+	}
+	args := []string{"-std=" + version}
+	if compiler == "gcc" {
+		args = append(args, "-x", "c")
+	}
 	if propsOr(props, "o2", "1") == "1" {
 		args = append(args, "-O2")
 	}
@@ -519,6 +536,9 @@ func compileArgs(srcPath, exePath string, props map[string]string) []string {
 		args = append(args, splitQuoted(extra)...)
 	}
 	args = append(args, srcPath, "-o", exePath, "-g")
+	if compiler == "gcc" {
+		args = append(args, "-lm")
+	}
 	return args
 }
 
@@ -535,7 +555,7 @@ func compileProjectTo(srcPath, exePath string, props map[string]string) (string,
 func compileProjectStopped(srcPath, exePath string, props map[string]string, stopped func() bool) (string, bool, bool) {
 	args := compileArgs(srcPath, exePath, props)
 
-	cmd := exec.Command("g++", args...)
+	cmd := exec.Command(compilerOf(props), args...)
 	hideProcWindow(cmd)
 	var buf syncBuffer
 	cmd.Stdout = &buf
@@ -575,7 +595,7 @@ func compileProjectStopped(srcPath, exePath string, props map[string]string, sto
 
 // compileProject 使用项目配置编译源码，始终附带 -g 以便 gdb 调试。
 func compileProject(srcPath, exePath string, props map[string]string) bool {
-	cmd := exec.Command("g++", compileArgs(srcPath, exePath, props)...)
+	cmd := exec.Command(compilerOf(props), compileArgs(srcPath, exePath, props)...)
 	hideProcWindow(cmd)
 	var errBuf strings.Builder
 	cmd.Stderr = &errBuf
