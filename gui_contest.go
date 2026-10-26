@@ -431,8 +431,12 @@ func (p *contestPage) buildBoard() fyne.CanvasObject {
 		items = append(items, wrappedCenter("配置提醒：\n"+strings.Join(lines, "\n")))
 	}
 	items = append(items, widget.NewSeparator(), section("题目明细"))
-	for _, name := range p.res.Problems {
+	for i, name := range p.res.Problems {
 		if prob, ok := c.problemOf(name); ok {
+			if i > 0 {
+				// 每道题之间留一个空行，长榜单里才好分辨分界。
+				items = append(items, widget.NewSeparator())
+			}
 			items = append(items, p.problemDetail(prob, rows))
 		}
 	}

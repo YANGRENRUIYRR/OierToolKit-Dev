@@ -44,36 +44,89 @@ func findStatement(p project) string {
 	return ""
 }
 
-// statementPage 是一个只读的题面展示页，直接嵌进项目标签页。
+// statementPage 是项目题面页：默认渲染预览，可原地编辑并保存成
+// problem.md（题面文件已存在时沿用原文件名，避免多份题面）。
 type statementPage struct {
 	pg      *projectPage
 	content fyne.CanvasObject
 	rich    *widget.RichText
 	title   *widget.Label
+
+	// 编辑层
+	editor    *widget.Entry
+	preview   fyne.CanvasObject
+	paneStack *fyne.Container
+	editBtn   *widget.Button
+	editing   bool
+	text      string // 当前题面源码（未落盘的最新编辑结果）
 }
 
 func newStatementPage(pg *projectPage) *statementPage {
 	s := &statementPage{pg: pg}
 	s.title = hint("")
+
 	s.rich = widget.NewRichText()
 	s.rich.Wrapping = fyne.TextWrapWord
+	s.editor = widget.NewMultiLineEntry()
+	s.editor.Wrapping = fyne.TextWrapOff
+	s.editor.SetPlaceHolder("## 题面\n\n在这里写 Markdown，Ctrl+S 保存。")
+	s.preview = container.NewVScroll(container.NewPadded(s.rich))
+	s.paneStack = container.NewStack(s.preview)
+
 	reloadBtn := widget.NewButtonWithIcon(tr("重新加载"), theme.ViewRefreshIcon(), s.reload)
-	head := container.NewBorder(nil, nil, nil, reloadBtn, container.NewPadded(s.title))
+	s.editBtn = widget.NewButtonWithIcon("编辑题面", theme.DocumentCreateIcon(), s.toggleEdit)
+	saveBtn := widget.NewButtonWithIcon(tr("保存"), theme.DocumentSaveIcon(), s.save)
+	head := container.NewBorder(nil, nil, s.editBtn,
+		container.NewHBox(saveBtn, reloadBtn), container.NewPadded(s.title))
 	s.content = container.NewBorder(
 		container.NewVBox(head, widget.NewSeparator()),
 		nil, nil, nil,
-		container.NewVScroll(container.NewPadded(s.rich)),
+		s.paneStack,
 	)
 	s.reload()
 	return s
+}
+
+// toggleEdit 在预览与源码编辑之间切换。
+func (s *statementPage) toggleEdit() {
+	s.editing = !s.editing
+	if s.editing {
+		s.editor.SetText(s.text)
+		s.paneStack.Objects = []fyne.CanvasObject{container.NewVScroll(s.editor)}
+		s.editBtn.SetText("退出编辑")
+	} else {
+		s.rich.ParseMarkdown(stmtPreviewText(s.text))
+		s.paneStack.Objects = []fyne.CanvasObject{s.preview}
+		s.editBtn.SetText("编辑题面")
+	}
+	s.paneStack.Refresh()
+}
+
+// save 把编辑内容写回题面文件（没有则新建 problem.md）。
+func (s *statementPage) save() {
+	if s.editing {
+		s.text = s.editor.Text
+	}
+	path := findStatement(s.pg.p)
+	if path == "" {
+		path = filepath.Join(s.pg.p.Dir, "problem.md")
+	}
+	if err := os.WriteFile(path, []byte(s.text), 0644); err != nil {
+		s.pg.g.showError(err)
+		return
+	}
+	s.title.SetText(path)
+	s.rich.ParseMarkdown(stmtPreviewText(s.text))
+	s.pg.g.setStatus("题面已保存：" + path)
 }
 
 // reload 读取题面文件并渲染；没有题面时给放置提示。
 func (s *statementPage) reload() {
 	path := findStatement(s.pg.p)
 	if path == "" {
-		s.title.SetText("没有找到题面文件")
-		s.rich.ParseMarkdown("把题面保存为 `problem.md` / `statement.md` / `题面.md` 放在项目目录里，即可在这里渲染。")
+		s.title.SetText("没有找到题面文件（点“编辑题面”可直接新建 problem.md）")
+		s.text = ""
+		s.rich.ParseMarkdown(stmtPreviewText(""))
 		return
 	}
 	data, err := os.ReadFile(path)
@@ -84,5 +137,6 @@ func (s *statementPage) reload() {
 		return
 	}
 	s.title.SetText(path)
-	s.rich.ParseMarkdown(string(data))
+	s.text = string(data)
+	s.rich.ParseMarkdown(stmtPreviewText(s.text))
 }
