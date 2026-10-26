@@ -420,8 +420,9 @@ func (p *contestPage) buildBoard() fyne.CanvasObject {
 		// 概览文字允许换行，否则选手多时这一行自己就把内容顶得很宽。
 		// 顶部补一个 Padding()，和榜单页外层 Padded 的边距一致。
 		container.NewGridWrap(fyne.NewSize(1, theme.Padding()), layout.NewSpacer()),
-		wrappedCenter(fmt.Sprintf(tr("共 %d 位选手 · %d 道题 · 满分 %s 分 · 评测于 %s"),
-			len(rows), len(p.res.Problems), fmtScore(full), p.res.JudgedAt)),
+		textRow(fmt.Sprintf(tr("共 %d 位选手 · %d 道题 · 满分 %s 分 · 评测于 %s"),
+			len(rows), len(p.res.Problems), fmtScore(full), p.res.JudgedAt),
+			theme.Color(theme.ColorNameDisabled), theme.SizeNameCaptionText, false),
 		passRateBars(passRates(c, p.res)),
 		// 表格不设宽高约束，统一交给外层 ScrollBoth 滚动。
 		p.rankingTable(rows, full),
@@ -461,7 +462,12 @@ func passRateBars(rates []passRate) fyne.CanvasObject {
 	title := canvas.NewText(tr("通过率"), theme.Color(theme.ColorNameForeground))
 	title.TextStyle = fyne.TextStyle{Bold: true}
 	title.TextSize = theme.TextSize()
-	out := []fyne.CanvasObject{textLine(title)}
+	// 标题上方留 theme.Padding()（本主题 5px）：上面那行概览文字已改成
+	// 紧凑的 canvas.Text，两行之间就靠这一条 spacer 撑开。
+	out := []fyne.CanvasObject{
+		container.NewGridWrap(fyne.NewSize(1, theme.Padding()), layout.NewSpacer()),
+		textLine(title),
+	}
 	for _, pr := range rates {
 		bar := newSlimBar(pr.Rate())
 		info := caption(fmt.Sprintf("%d/%d（%.0f%%）", pr.Solved, pr.Players, pr.Rate()*100))
@@ -502,7 +508,29 @@ func (s *singleText) CreateRenderer() fyne.WidgetRenderer {
 
 func (s *singleText) MinSize() fyne.Size {
 	// 宽度给 0 让 VBox 把它撑满整行（否则标题会紧贴左侧且不参与横向拉伸）。
-	return fyne.NewSize(0, s.t.TextSize*1.4)
+	return fyne.NewSize(0, textLineH(s.t))
+}
+
+// textLineH 是 singleText 占用的高度：行高取字号 1.4 倍，
+// 但不低于文字自身高度，避免文字被压扁。
+func textLineH(t *canvas.Text) float32 {
+	h := t.TextSize * 1.4
+	if mh := t.MinSize().Height; mh > h {
+		h = mh
+	}
+	return h
+}
+
+// textRow 把一行只读文字包成紧凑组件：用 canvas.Text 而不是 widget.Label，
+// 因为 Label 的行盒上下各留约 7px 空白，叠在「通过率」标题上方会变成
+// 十几像素的空档。样式（颜色、字号、加粗、居中）全部在构造时定好，
+// 之后不再变化，所以渲染器只负责排版。
+func textRow(text string, col color.Color, sizeName fyne.ThemeSizeName, bold bool) fyne.CanvasObject {
+	t := canvas.NewText(text, col)
+	t.TextSize = theme.Size(sizeName)
+	t.TextStyle = fyne.TextStyle{Bold: bold}
+	t.Alignment = fyne.TextAlignCenter
+	return &singleText{t: t}
 }
 
 type singleTextRenderer struct{ s *singleText }
