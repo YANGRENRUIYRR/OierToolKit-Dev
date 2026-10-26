@@ -78,7 +78,7 @@ type contestProblem struct {
 	SPJ    bool    `json:"spj,omitempty"`     // 特殊判题：data/<题目>/checker.cpp
 	// Compiler 是本题编译器：g++（缺省）或 gcc（按 C 编译，链接 -lm）。
 	Compiler string `json:"compiler,omitempty"`
-	// Statement 是题目背景（Markdown），在题目配置里编辑、榜单明细里渲染。
+	// Statement 是题面（Markdown），在题目配置里编辑、榜单明细里渲染。
 	Statement string           `json:"statement,omitempty"`
 	Tests     []testPoint      `json:"tests"`    // 测试点
 	Subtasks  []contestSubtask `json:"subtasks"` // 子任务；为空表示每点独立计分

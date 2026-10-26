@@ -105,12 +105,18 @@ func newContestPage(g *guiApp, c contest) *contestPage {
 	p.exportCsvBtn = widget.NewButtonWithIcon(tr("导出 CSV"), theme.GridIcon(), p.exportCSV)
 	p.exportCsvBtn.Disable()
 
+	// 标题与操作放同一行：评测状态紧跟按钮，不再被标题独占一行挤到下面。
+	titleRow := container.NewBorder(nil, nil, nil,
+		container.NewHBox(p.judgeBtn, p.stopBtn, p.exportBtn, p.exportCsvBtn),
+		container.NewVBox(p.title, p.meta),
+	)
+
 	head := container.NewVBox(
-		container.NewPadded(btns),
-		container.NewPadded(container.NewVBox(p.title, p.meta)),
-		// 按钮行只放按钮：状态文字单独占一行，否则进度信息会把整行
-		// 撑宽，连带挤压左侧的模拟赛入口。
-		container.NewPadded(container.NewHBox(p.judgeBtn, p.stopBtn, p.exportBtn, p.exportCsvBtn)),
+		container.NewPadded(container.NewBorder(nil, nil,
+			btns, nil,
+			titleRow,
+		)),
+		// 状态文字与进度条紧贴按钮行，评测时视线不用往下找。
 		container.NewPadded(p.status),
 		container.NewPadded(p.bar),
 	)
@@ -130,7 +136,7 @@ func newContestPage(g *guiApp, c contest) *contestPage {
 	)
 	tabs.SetTabLocation(container.TabLocationTop)
 
-	p.content = container.NewBorder(head, nil, nil, nil, tabs)
+	p.content = container.NewBorder(container.NewPadded(head), nil, nil, nil, tabs)
 	p.reload()
 	return p
 }
@@ -506,7 +512,7 @@ func (p *contestPage) problemDetail(prob contestProblem, rows []rankRow) fyne.Ca
 
 	items := []fyne.CanvasObject{container.NewPadded(title)}
 
-	// 题目背景（Markdown）
+	// 题面（Markdown）
 	if strings.TrimSpace(prob.Statement) != "" {
 		rich := widget.NewRichText()
 		rich.ParseMarkdown(prob.Statement)

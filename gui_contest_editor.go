@@ -229,13 +229,39 @@ func (e *contestEditor) showProblem() {
 		p.updateProblem(e.selected, func(pr *contestProblem) { pr.Compiler = cc })
 	}
 
-	// 题目背景：Markdown，榜单明细里渲染。
+	// 题面：Markdown，编辑与预览都在弹窗里完成，榜单明细里也会渲染。
 	stmtIn := widget.NewMultiLineEntry()
 	stmtIn.SetText(prob.Statement)
-	stmtIn.SetPlaceHolder("## 题目背景\n\n支持 Markdown……")
+	stmtIn.SetPlaceHolder("## 题面\n\n支持 Markdown……")
 	stmtIn.OnChanged = func(v string) {
 		p.updateProblem(e.selected, func(pr *contestProblem) { pr.Statement = v })
 	}
+	stmtView := widget.NewRichText()
+	stmtView.Wrapping = fyne.TextWrapWord
+	stmtView.ParseMarkdown(stmtPreviewText(prob.Statement))
+
+	stmtBox := container.NewStack(stmtView)
+	editBtn := widget.NewButtonWithIcon("编辑题面", theme.DocumentCreateIcon(), func() {
+		p.g.showSheet(sheetOptions{
+			Title:   prob.Name + " 题面",
+			Confirm: "保存",
+			Dismiss: "取消",
+			Content: container.NewBorder(
+				caption("Markdown 源码，保存后立即渲染到下方预览与榜单明细。"), nil, nil, nil,
+				stmtIn,
+			),
+			OnConfirm: func() {
+				p.updateProblem(e.selected, func(pr *contestProblem) { pr.Statement = stmtIn.Text })
+				stmtView.ParseMarkdown(stmtPreviewText(stmtIn.Text))
+				p.refreshBoard()
+			},
+		})
+	})
+	stmtPane := container.NewBorder(
+		container.NewHBox(editBtn, caption("预览如下；没有题面时显示占位提示")),
+		nil, nil, nil,
+		container.NewVScroll(stmtBox),
+	)
 
 	// 特殊判题：data/<题目>/checker.cpp（checker <输入> <选手输出> <期望输出>）。
 	spjChk := widget.NewCheck("特殊判题（checker.cpp）", nil)
@@ -258,8 +284,8 @@ func (e *contestEditor) showProblem() {
 			widget.NewFormItem("输入输出", container.NewVBox(ioChk, ioIn, ioOut)),
 			widget.NewFormItem("特殊判题", container.NewVBox(spjChk,
 				caption("把 checker.cpp 放进 data/"+prob.Name+"/，约定：\nchecker <输入> <选手输出> <期望输出>，退出码 0 为 AC。"))),
-			widget.NewFormItem("题目背景", container.NewVBox(stmtIn,
-				caption("Markdown，保存在比赛配置里，榜单明细中渲染。gcc 按源码扩展名编译并链接 -lm。"))),
+			widget.NewFormItem("题面", container.NewVBox(stmtPane,
+				caption("Markdown，保存在比赛配置里，榜单明细中渲染。"))),
 		),
 		e.scoreSum,
 		widget.NewSeparator(),
@@ -273,6 +299,14 @@ func (e *contestEditor) showProblem() {
 	)
 	e.detail.Objects = []fyne.CanvasObject{basic}
 	e.detail.Refresh()
+}
+
+// stmtPreviewText 给空题面一个可读的占位提示。
+func stmtPreviewText(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return "_（还没有题面，点“编辑题面”填写 Markdown 源码）_"
+	}
+	return s
 }
 
 // buildSubtasks 生成子任务编辑区。
