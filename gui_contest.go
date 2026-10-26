@@ -405,6 +405,7 @@ func (p *contestPage) buildBoard() fyne.CanvasObject {
 		tip.Alignment = fyne.TextAlignCenter
 		tip.Wrapping = fyne.TextWrapWord
 		return container.NewVBox(
+			container.NewGridWrap(fyne.NewSize(1, theme.Padding()), layout.NewSpacer()),
 			container.NewPadded(container.NewCenter(
 				widget.NewLabelWithStyle("尚未评测", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}))),
 			container.NewPadded(tip),
@@ -417,6 +418,8 @@ func (p *contestPage) buildBoard() fyne.CanvasObject {
 
 	items := []fyne.CanvasObject{
 		// 概览文字允许换行，否则选手多时这一行自己就把内容顶得很宽。
+		// 顶部补一个 Padding()，和榜单页外层 Padded 的边距一致。
+		container.NewGridWrap(fyne.NewSize(1, theme.Padding()), layout.NewSpacer()),
 		wrappedCenter(fmt.Sprintf("共 %d 位选手 · %d 道题 · 满分 %s 分 · 评测于 %s",
 			len(rows), len(p.res.Problems), fmtScore(full), p.res.JudgedAt)),
 		passRateBars(passRates(c, p.res)),
