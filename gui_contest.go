@@ -462,8 +462,9 @@ func passRateBars(rates []passRate) fyne.CanvasObject {
 	title := canvas.NewText(tr("通过率"), theme.Color(theme.ColorNameForeground))
 	title.TextStyle = fyne.TextStyle{Bold: true}
 	title.TextSize = theme.TextSize()
-	// 标题上方留 theme.Padding()（本主题 5px）：上面那行概览文字已改成
-	// 紧凑的 canvas.Text，两行之间就靠这一条 spacer 撑开。
+	// 标题上方那一格 spacer 就是两行文字之间的净空：概览行和标题都改成了
+	// 紧凑的 singleText（高度只报字号，见 textLineH），不再额外带行盒留白，
+	// 所以这里的 theme.Padding()（本主题 5px）就是肉眼量到的间距。
 	out := []fyne.CanvasObject{
 		container.NewGridWrap(fyne.NewSize(1, theme.Padding()), layout.NewSpacer()),
 		textLine(title),
@@ -473,23 +474,70 @@ func passRateBars(rates []passRate) fyne.CanvasObject {
 		info := caption(fmt.Sprintf("%d/%d（%.0f%%）", pr.Solved, pr.Players, pr.Rate()*100))
 		name := widget.NewLabel(pr.Problem)
 		// 题名在左、数字在右，都套 Center 让文字在整行高度里垂直居中。
+		// 右区放百分比文字（定宽），中间进度条吃掉剩余宽度。
+		right := container.NewHBox(
+			container.NewStack(container.NewCenter(container.NewHBox(info))),
+		)
 		row := container.NewBorder(nil, nil,
 			container.NewStack(container.NewCenter(container.NewHBox(name))),
-			container.NewStack(container.NewCenter(container.NewHBox(info))),
+			right,
 			bar,
 		)
 		out = append(out, row)
 	}
 	// 末尾留一段纯空白（不是分隔线），与下方榜单表格分开。
 	out = append(out, container.NewGridWrap(fyne.NewSize(1, theme.Padding()), layout.NewSpacer()))
-	block := container.NewVBox(out...)
-	// 整块限宽：Border 会把进度条拉满剩余宽度，不设上限时窗口一宽条就长得离谱。
-	// 高度必须取内容实际高度，写 0 会让 GridWrap 真的缩成 0 高并把子项叠在一起。
-	return container.NewGridWrap(fyne.NewSize(passRateBlockW, block.MinSize().Height), block)
+	// 整块限宽不能用 GridWrap：它把子项塞进固定格子并顶部对齐，内容比格子
+	// 矮时落差全变成空白（就是「通过率」上方那片怎么也调不掉的空）。
+	return maxWidthBars(container.NewVBox(out...), passRateBlockW)
 }
 
 // passRateBlockW 是通过率区块的最大宽度，与评测进度条一致。
 const passRateBlockW = 560
+
+// maxWidthBars 只压缩内容的横向宽度，纵向完全跟着内容走。
+// 做成 wrapper 而不是 GridWrap：GridWrap 用固定的格子尺寸排版，格子比
+// 内容高时会把子项顶部对齐并留下空白；这里 Layout 只在宽度上做 min()。
+func maxWidthBars(content fyne.CanvasObject, max float32) fyne.CanvasObject {
+	b := &barsWrapper{content: content, max: max}
+	b.ExtendBaseWidget(b)
+	return b
+}
+
+type barsWrapper struct {
+	widget.BaseWidget
+	content fyne.CanvasObject
+	max     float32
+}
+
+func (b *barsWrapper) CreateRenderer() fyne.WidgetRenderer { return &barsRenderer{b: b} }
+
+type barsRenderer struct{ b *barsWrapper }
+
+func (r *barsRenderer) Layout(size fyne.Size) {
+	w := r.b.max
+	if size.Width < w {
+		w = size.Width
+	}
+	// 高度固定取内容 MinSize：内容是一列固定高的行，不应被父级拉长
+	// （拉长后 VBox 会把多出来的高度平均分给各行，又变回空白）。
+	r.b.content.Resize(fyne.NewSize(w, r.b.content.MinSize().Height))
+	r.b.content.Move(fyne.NewPos(0, 0))
+}
+
+func (r *barsRenderer) MinSize() fyne.Size {
+	ms := r.b.content.MinSize()
+	if ms.Width > r.b.max {
+		ms.Width = r.b.max
+	}
+	return ms
+}
+
+func (r *barsRenderer) Objects() []fyne.CanvasObject { return []fyne.CanvasObject{r.b.content} }
+
+func (r *barsRenderer) Refresh() { canvas.Refresh(r.b.content) }
+
+func (r *barsRenderer) Destroy() {}
 
 // textLine 把一段 canvas.Text 包成只占文字实际高度的组件。
 // 用它代替 widget.Label 当小标题，可以避免 Label 自带的行内留白。
@@ -507,18 +555,23 @@ func (s *singleText) CreateRenderer() fyne.WidgetRenderer {
 }
 
 func (s *singleText) MinSize() fyne.Size {
-	// 宽度给 0 让 VBox 把它撑满整行（否则标题会紧贴左侧且不参与横向拉伸）。
-	return fyne.NewSize(0, textLineH(s.t))
+	// 宽度取文字实际宽度：canvas.Text 不换行，报 0 会被父容器裁掉。
+	return fyne.NewSize(s.t.MinSize().Width, textLineH(s.t))
 }
 
-// textLineH 是 singleText 占用的高度：行高取字号 1.4 倍，
-// 但不低于文字自身高度，避免文字被压扁。
+// textLineH 是 singleText 占用的高度，直接取字号（14→14，11→11），
+// 而不是 canvas.Text.MinSize（字号 14 报 19.08，字号 11 报 14.98）。
+//
+// 两者之差是字体行距：canvas.Text 在行盒内贴顶绘制，字形本身只有约
+// 0.78 倍字号高，所以 MinSize 里多出来的 5~6px 会全部落在文字下方，
+// 白送给下一个组件。实测在概览行上就是：字号 11 的文字从行盒顶部往下
+// 约 10px 才出现第一个像素行，这 10px 会整个叠进「通过率」上方的间距，
+// 让 5px 的 spacer 量出来变成 17px。
+//
+// 行盒压到字号本身后，字形（0.78 倍）仍然完整落在行盒内，只是行距不再
+// 由字体决定、而由调用方插的 spacer 决定——要求 5px 就能精确落在 5px。
 func textLineH(t *canvas.Text) float32 {
-	h := t.TextSize * 1.4
-	if mh := t.MinSize().Height; mh > h {
-		h = mh
-	}
-	return h
+	return t.TextSize
 }
 
 // textRow 把一行只读文字包成紧凑组件：用 canvas.Text 而不是 widget.Label，
@@ -567,8 +620,9 @@ func newSlimBar(ratio float64) *slimBar {
 }
 
 func (b *slimBar) MinSize() fyne.Size {
-	// 只画一条细条，纵向高度就是条本身。
-	return fyne.NewSize(220, theme.Padding()*2)
+	// 只画一条细条，纵向高度就是条本身。宽度给一个较小的下限，
+	// 实际宽度由父级 Border 拉伸，但整行有 passRateBlockW 的上限兜底。
+	return fyne.NewSize(120, theme.Padding()*2)
 }
 
 func (b *slimBar) CreateRenderer() fyne.WidgetRenderer {
