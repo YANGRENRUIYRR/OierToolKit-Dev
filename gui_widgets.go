@@ -74,12 +74,15 @@ type badgeRenderer struct {
 
 func (r *badgeRenderer) Layout(size fyne.Size) {
 	r.badge.bg.Resize(size)
-	r.badge.text.Resize(size)
-	r.badge.text.Move(fyne.NewPos(0, (size.Height-r.badge.text.MinSize().Height)/2))
+	// canvas.Text 的绘制基线落在自己的下沿，所以先把它收缩到文字实际
+	// 高度，再整体垂直居中；直接 Resize 成整个格子会把文字压到底部。
+	h := r.badge.text.MinSize().Height
+	r.badge.text.Resize(fyne.NewSize(size.Width, h))
+	r.badge.text.Move(fyne.NewPos(0, (size.Height-h)/2))
 }
 
 func (r *badgeRenderer) MinSize() fyne.Size {
-	return fyne.NewSize(50, 24)
+	return fyne.NewSize(54, 26)
 }
 
 func (r *badgeRenderer) Refresh() {

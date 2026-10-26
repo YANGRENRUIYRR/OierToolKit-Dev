@@ -753,6 +753,10 @@ func (r *pointRow) update(pt pointResult, limit float64) {
 }
 
 func (r *pointRow) CreateRenderer() fyne.WidgetRenderer {
-	line := container.NewHBox(r.badge, r.id, layout.NewSpacer(), r.info)
+	// canvas.Text 在 HBox 里会贴底绘制，套 Center 才能与徽标垂直对齐。
+	centerText := func(t *canvas.Text) fyne.CanvasObject {
+		return container.NewStack(container.NewCenter(t))
+	}
+	line := container.NewHBox(r.badge, centerText(r.id), layout.NewSpacer(), centerText(r.info))
 	return widget.NewSimpleRenderer(container.NewPadded(line))
 }
