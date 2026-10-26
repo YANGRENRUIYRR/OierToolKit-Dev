@@ -215,6 +215,28 @@ func (e *contestEditor) showProblem() {
 		p.updateProblem(e.selected, func(pr *contestProblem) { pr.IOOut = strings.TrimSpace(v) })
 	}
 
+	// 编译器：g++（缺省）或 gcc（按 C 编译，链接 -lm）。
+	compSel := widget.NewSelect([]string{"g++", "gcc"}, nil)
+	compSel.SetSelected(prob.Compiler)
+	if compSel.Selected == "" {
+		compSel.SetSelected("g++")
+	}
+	compSel.OnChanged = func(v string) {
+		cc := v
+		if cc == "g++" {
+			cc = ""
+		}
+		p.updateProblem(e.selected, func(pr *contestProblem) { pr.Compiler = cc })
+	}
+
+	// 题目背景：Markdown，榜单明细里渲染。
+	stmtIn := widget.NewMultiLineEntry()
+	stmtIn.SetText(prob.Statement)
+	stmtIn.SetPlaceHolder("## 题目背景\n\n支持 Markdown……")
+	stmtIn.OnChanged = func(v string) {
+		p.updateProblem(e.selected, func(pr *contestProblem) { pr.Statement = v })
+	}
+
 	// 特殊判题：data/<题目>/checker.cpp（checker <输入> <选手输出> <期望输出>）。
 	spjChk := widget.NewCheck("特殊判题（checker.cpp）", nil)
 	spjChk.SetChecked(prob.SPJ)
@@ -232,9 +254,12 @@ func (e *contestEditor) showProblem() {
 			widget.NewFormItem("显示标题", titleIn),
 			widget.NewFormItem("时限（秒）", timeIn),
 			widget.NewFormItem("内存（MB）", memIn),
+			widget.NewFormItem("编译器", compSel),
 			widget.NewFormItem("输入输出", container.NewVBox(ioChk, ioIn, ioOut)),
 			widget.NewFormItem("特殊判题", container.NewVBox(spjChk,
 				caption("把 checker.cpp 放进 data/"+prob.Name+"/，约定：\nchecker <输入> <选手输出> <期望输出>，退出码 0 为 AC。"))),
+			widget.NewFormItem("题目背景", container.NewVBox(stmtIn,
+				caption("Markdown，保存在比赛配置里，榜单明细中渲染。gcc 按源码扩展名编译并链接 -lm。"))),
 		),
 		e.scoreSum,
 		widget.NewSeparator(),

@@ -436,6 +436,8 @@ func (p *contestPage) buildBoard() fyne.CanvasObject {
 }
 
 // passRateBars 生成每道题的满分率进度条行（题名 + 条 + 百分比）。
+// 整块固定宽度：榜单外层是双向 Scroll，表格会把整个 VBox 撑到上千像素宽，
+// 不限宽的话进度条会跟着拉满、被迫横向滚动才能看全。
 func passRateBars(rates []passRate) fyne.CanvasObject {
 	if len(rates) == 0 {
 		return nil
@@ -452,7 +454,8 @@ func passRateBars(rates []passRate) fyne.CanvasObject {
 			nil, bar,
 		))
 	}
-	return container.NewPadded(box)
+	height := float32(44 + len(rates)*36)
+	return container.NewGridWrap(fyne.NewSize(640, height), box)
 }
 
 // wrappedCenter 生成一段居中的可换行说明文字。
@@ -502,6 +505,14 @@ func (p *contestPage) problemDetail(prob contestProblem, rows []rankRow) fyne.Ca
 		fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 
 	items := []fyne.CanvasObject{container.NewPadded(title)}
+
+	// 题目背景（Markdown）
+	if strings.TrimSpace(prob.Statement) != "" {
+		rich := widget.NewRichText()
+		rich.ParseMarkdown(prob.Statement)
+		rich.Wrapping = fyne.TextWrapWord
+		items = append(items, container.NewPadded(rich), widget.NewSeparator())
+	}
 
 	// 子任务矩阵
 	if len(prob.Subtasks) > 0 {

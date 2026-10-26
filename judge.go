@@ -517,8 +517,8 @@ func compilerOf(props map[string]string) string {
 }
 
 // compileArgs 依据项目配置组装编译参数：语言标准、O2、用户自定义额外
-// 参数（cflags，如 "-Wall"）与调试信息。gcc 模式下源码按 C 编译
-// （-x c），版本缺省换为 c17，并链接 -lm。
+// 参数（cflags）与调试信息。gcc 只切换编译器二进制并链接 -lm，
+// 不注入任何额外开关；语言标准错配时（gcc 配了 c++*）回退 c17。
 func compileArgs(srcPath, exePath string, props map[string]string) []string {
 	compiler := compilerOf(props)
 	version := propsOr(props, "version", "c++17")
@@ -526,9 +526,6 @@ func compileArgs(srcPath, exePath string, props map[string]string) []string {
 		version = "c17"
 	}
 	args := []string{"-std=" + version}
-	if compiler == "gcc" {
-		args = append(args, "-x", "c")
-	}
 	if propsOr(props, "o2", "1") == "1" {
 		args = append(args, "-O2")
 	}

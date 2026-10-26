@@ -68,16 +68,20 @@ type contestSubtask struct {
 
 // contestProblem 是一道比赛的题。
 type contestProblem struct {
-	Name     string           `json:"name"`              // 题目名，与 data/<题目名> 同名
-	Title    string           `json:"title"`             // 显示用标题，可空
-	TimeMS   int64            `json:"time_ms"`           // 时限（毫秒）
-	MemMB    float64          `json:"mem_mb"`            // 内存限制（MB）
-	IOFile   bool             `json:"io_file,omitempty"` // 文件读写题
-	IOIn     string           `json:"io_in,omitempty"`   // 输入文件名，空为 <题目名>.in
-	IOOut    string           `json:"io_out,omitempty"`  // 输出文件名，空为 <题目名>.out
-	SPJ      bool             `json:"spj,omitempty"`     // 特殊判题：data/<题目>/checker.cpp
-	Tests    []testPoint      `json:"tests"`             // 测试点
-	Subtasks []contestSubtask `json:"subtasks"`          // 子任务；为空表示每点独立计分
+	Name   string  `json:"name"`              // 题目名，与 data/<题目名> 同名
+	Title  string  `json:"title"`             // 显示用标题，可空
+	TimeMS int64   `json:"time_ms"`           // 时限（毫秒）
+	MemMB  float64 `json:"mem_mb"`            // 内存限制（MB）
+	IOFile bool    `json:"io_file,omitempty"` // 文件读写题
+	IOIn   string  `json:"io_in,omitempty"`   // 输入文件名，空为 <题目名>.in
+	IOOut  string  `json:"io_out,omitempty"`  // 输出文件名，空为 <题目名>.out
+	SPJ    bool    `json:"spj,omitempty"`     // 特殊判题：data/<题目>/checker.cpp
+	// Compiler 是本题编译器：g++（缺省）或 gcc（按 C 编译，链接 -lm）。
+	Compiler string `json:"compiler,omitempty"`
+	// Statement 是题目背景（Markdown），在题目配置里编辑、榜单明细里渲染。
+	Statement string           `json:"statement,omitempty"`
+	Tests     []testPoint      `json:"tests"`    // 测试点
+	Subtasks  []contestSubtask `json:"subtasks"` // 子任务；为空表示每点独立计分
 }
 
 // checkerSourceOf 返回某道题的 checker 源码路径（约定放在 data/<题目>/ 下）。

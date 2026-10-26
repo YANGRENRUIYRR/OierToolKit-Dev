@@ -160,15 +160,19 @@ func TestCompileArgsCflags(t *testing.T) {
 	}
 }
 
-// TestCompileArgsGcc 验证 gcc 模式：按 C 编译、缺省标准 c17、链接 -lm。
+// TestCompileArgsGcc 验证 gcc 模式：只用必要参数（无 -x 之类注入），
+// 缺省标准 c17，链接 -lm。
 func TestCompileArgsGcc(t *testing.T) {
 	props := map[string]string{"compiler": "gcc", "version": "c++17"}
 	args := compileArgs("a.cpp", "a.exe", props)
 	if !containsString(args, "-std=c17") || containsString(args, "-std=c++17") {
 		t.Fatalf("gcc 模式应把 c++ 标准换为 c17: %v", args)
 	}
-	if !containsString(args, "-x") || !containsString(args, "c") || !containsString(args, "-lm") {
-		t.Fatalf("gcc 模式缺少 -x c / -lm: %v", args)
+	if containsString(args, "-x") {
+		t.Fatalf("不应注入 -x: %v", args)
+	}
+	if !containsString(args, "-lm") {
+		t.Fatalf("gcc 模式缺少 -lm: %v", args)
 	}
 	if compilerOf(props) != "gcc" {
 		t.Fatalf("compilerOf 错误: %s", compilerOf(props))

@@ -264,6 +264,9 @@ func judgeSubmission(c contest, prob contestProblem, src contestSource, buildDir
 		"version": "c++17",
 		"o2":      "1",
 	}
+	if prob.Compiler != "" {
+		props["compiler"] = prob.Compiler
+	}
 	log, ok, aborted := compileProjectStopped(srcPath, exe, props, stopped)
 	if aborted {
 		return out, true
