@@ -23,6 +23,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -60,9 +61,10 @@ func newSourcePage(pg *projectPage) *sourcePage {
 			pg.g.showError(err)
 		}
 	})
+	statsBtn := widget.NewButtonWithIcon("统计", theme.InfoIcon(), s.showStats)
 
 	head := container.NewBorder(nil, nil, nil,
-		container.NewHBox(saveBtn, reloadBtn, extBtn, gdbBtn),
+		container.NewHBox(saveBtn, reloadBtn, extBtn, gdbBtn, statsBtn),
 		container.NewVBox(container.NewPadded(s.path), s.note),
 	)
 
@@ -98,6 +100,16 @@ func (s *sourcePage) reload() {
 	s.loaded = string(data)
 	s.editor.SetText(s.loaded)
 	s.note.SetText("")
+}
+
+// showStats 展示当前源码的静态统计：体量、括号配对与全角字符检查。
+func (s *sourcePage) showStats() {
+	cs := codeStatsOf(s.editor.Text)
+	body := widget.NewLabel(statsSummary(cs))
+	body.TextStyle = fyne.TextStyle{Monospace: true}
+	d := dialog.NewCustom("代码统计", "关闭", container.NewVScroll(body), s.pg.g.win)
+	d.Resize(fyne.NewSize(480, 320))
+	d.Show()
 }
 
 // save 把编辑器内容写回源码文件。

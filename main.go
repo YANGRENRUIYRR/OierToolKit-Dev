@@ -304,7 +304,7 @@ func printUsage(w io.Writer) {
 
 运行:
   otk judge | j [-v] [样例...]  编译并评测（-v 显示报错与 WA 详情；指定样例号只测该点）
-  otk history | his [次数]      最近几次评测结果
+  otk history | his [-e json|csv] [次数]  评测历史，-e 导出记录
   otk run | r            编译并运行
   otk debug | d          gdb 调试
   otk edit | e           编辑源码

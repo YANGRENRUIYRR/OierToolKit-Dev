@@ -514,12 +514,46 @@ func (j *judgePage) showHistory() {
 		}, j.pg.g.win)
 	})
 
+	export := func(format string) {
+		entries := readHistory(j.pg.p, 0)
+		if len(entries) == 0 {
+			return
+		}
+		var data []byte
+		var err error
+		if format == "json" {
+			data, err = historyJSON(entries)
+		} else {
+			data = historyCSV(entries)
+		}
+		if err != nil {
+			j.pg.g.showError(err)
+			return
+		}
+		save := dialog.NewFileSave(func(f fyne.URIWriteCloser, werr error) {
+			if werr != nil || f == nil {
+				return
+			}
+			if _, werr = f.Write(data); werr != nil {
+				j.pg.g.showError(werr)
+				return
+			}
+			name := f.URI().Name()
+			_ = f.Close()
+			j.pg.g.setStatus(fmt.Sprintf("已导出 %d 条记录到 %s", len(entries), name))
+		}, j.pg.g.win)
+		save.SetFileName(fmt.Sprintf("history-%s.%s", j.pg.p.codeName(), format))
+		save.Show()
+	}
+	exportCsvBtn := widget.NewButton("导出 CSV", func() { export("csv") })
+	exportJsonBtn := widget.NewButton("导出 JSON", func() { export("json") })
+
 	body := container.NewHSplit(list, container.NewVScroll(detail))
 	body.SetOffset(0.34)
 
 	content := container.NewBorder(
 		container.NewVBox(container.NewPadded(trend), widget.NewSeparator()),
-		container.NewHBox(clear),
+		container.NewHBox(clear, exportCsvBtn, exportJsonBtn),
 		nil, nil,
 		body,
 	)

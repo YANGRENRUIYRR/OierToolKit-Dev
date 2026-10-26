@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -34,12 +35,12 @@ const historyMax = 100
 
 // historyEntry 是一次评测的快照。
 type historyEntry struct {
-	Time      string        `json:"time"`                 // RFC3339 本地时间
-	Passed    int           `json:"passed"`               // 通过测试点数
-	Total     int           `json:"total"`                // 测试点总数
-	TimeLimit float64       `json:"time_limit"`           // 时限（秒）
-	MemLimit  float64       `json:"mem_limit"`            // 内存限制（MB）
-	Points    []pointResult `json:"points,omitempty"`     // 逐点明细
+	Time      string        `json:"time"`             // RFC3339 本地时间
+	Passed    int           `json:"passed"`           // 通过测试点数
+	Total     int           `json:"total"`            // 测试点总数
+	TimeLimit float64       `json:"time_limit"`       // 时限（秒）
+	MemLimit  float64       `json:"mem_limit"`        // 内存限制（MB）
+	Points    []pointResult `json:"points,omitempty"` // 逐点明细
 }
 
 // historyPath 返回评测历史文件路径。
@@ -88,14 +89,52 @@ func readHistory(p project, limit int) []historyEntry {
 	return entries
 }
 
+// historyJSON 把历史记录导出为 JSON 文本。
+func historyJSON(entries []historyEntry) ([]byte, error) {
+	return json.MarshalIndent(entries, "", "  ")
+}
+
+// historyCSV 把历史记录导出为 CSV 文本（最慢点耗时以毫秒计）。
+func historyCSV(entries []historyEntry) []byte {
+	var b strings.Builder
+	b.WriteString("时间,通过,总数,时限(s),内存限制(MB),最慢点(ms)\n")
+	for _, e := range entries {
+		worstStr := ""
+		if len(e.Points) > 0 {
+			worstStr = strconv.FormatInt(maxWallOf(e), 10)
+		}
+		fmt.Fprintf(&b, "%s,%d,%d,%.2f,%.0f,%s\n",
+			e.Time, e.Passed, e.Total, e.TimeLimit, e.MemLimit, worstStr)
+	}
+	return []byte(b.String())
+}
+
 // cmdHistory 查看当前项目的评测历史（默认最近 10 次）。
+// otk history [-e json|csv] [次数] 可把记录导出到当前目录。
 func cmdHistory(args []string) {
-	if len(args) > 1 {
-		fatal("用法: otk history [次数]")
+	var exportFmt string
+	var rest []string
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "-e", "--export":
+			if i+1 >= len(args) {
+				fatal("-e 需要指定格式 json 或 csv")
+			}
+			i++
+			exportFmt = strings.ToLower(args[i])
+			if exportFmt != "json" && exportFmt != "csv" {
+				fatal("导出格式只支持 json 或 csv")
+			}
+		default:
+			rest = append(rest, args[i])
+		}
+	}
+	if len(rest) > 1 {
+		fatal("用法: otk history [-e json|csv] [次数]")
 	}
 	n := 10
-	if len(args) == 1 {
-		v, err := strconv.Atoi(args[0])
+	if len(rest) == 1 {
+		v, err := strconv.Atoi(rest[0])
 		if err != nil || v <= 0 {
 			fatal("次数必须是正整数")
 		}
@@ -106,6 +145,25 @@ func cmdHistory(args []string) {
 	entries := readHistory(p, n)
 	if len(entries) == 0 {
 		fmt.Println("（还没有评测记录，先 otk j 跑一次）")
+		return
+	}
+
+	if exportFmt != "" {
+		name := fmt.Sprintf("history-%s.%s", p.codeName(), exportFmt)
+		var data []byte
+		var err error
+		if exportFmt == "json" {
+			data, err = historyJSON(entries)
+		} else {
+			data = historyCSV(entries)
+		}
+		if err != nil {
+			fatal("导出失败: %v", err)
+		}
+		if werr := os.WriteFile(name, data, 0644); werr != nil {
+			fatal("写入 %s 失败: %v", name, werr)
+		}
+		fmt.Printf("已导出 %d 条记录到 %s\n", len(entries), name)
 		return
 	}
 

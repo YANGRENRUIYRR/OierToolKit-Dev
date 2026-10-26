@@ -194,7 +194,11 @@ func (s *stressPage) run() {
 			default:
 				s.bar.SetValue(1)
 				s.status.SetText(fmt.Sprintf("全部通过（%d/%d）", res.Total, res.Total))
-				s.detail.SetText("没有发现反例。")
+				summary := "没有发现反例。"
+				if t := timingSummary(res); t != "" {
+					summary += "\n\n" + t
+				}
+				s.detail.SetText(summary)
 			}
 		})
 	}()

@@ -56,10 +56,16 @@ type stressResult struct {
 	// Counterexamples 是发现的反例总数：默认模式恒为 0 或 1，
 	// 开启 keepGoing 后会继续对拍并收集多个反例。
 	Counterexamples int
-	Input           string
-	Expected        string
-	Actual          string
-	StressDir       string
+	// 三类程序的累计耗时（毫秒）与最慢一轮的轮次、总耗时。
+	GenMs       int64
+	BruteMs     int64
+	ProjMs      int64
+	SlowRound   int
+	SlowRoundMs int64
+	Input       string
+	Expected    string
+	Actual      string
+	StressDir   string
 }
 
 // compileFailure 表示编译阶段失败，Log 是编译器输出。
@@ -131,6 +137,10 @@ func cmdStress(args []string) {
 	}
 
 	fmt.Println()
+	if res.SlowRound > 0 {
+		fmt.Printf("  耗时统计: gen %.1fs / brute %.1fs / 程序 %.1fs  最慢第 %d 轮（%dms）\n",
+			secs(res.GenMs), secs(res.BruteMs), secs(res.ProjMs), res.SlowRound, res.SlowRoundMs)
+	}
 	switch {
 	case res.Stopped:
 		fmt.Println(yellow + "对拍被中断" + reset)
@@ -200,7 +210,9 @@ func runStress(p project, count int, keepGoing bool, emit func(stressEvent), sto
 		}
 		emit(stressEvent{Stage: stressRound, Round: i, Total: count})
 
+		start := time.Now()
 		inputData, abort, err := execCmdCapture(genExe, "", p.Dir, stopped, nil)
+		genMs := time.Since(start).Milliseconds()
 		if abort {
 			res.Stopped = true
 			return res, nil
@@ -208,7 +220,9 @@ func runStress(p project, count int, keepGoing bool, emit func(stressEvent), sto
 		if err != nil {
 			return res, fmt.Errorf("第 %d 轮: gen 运行时错误 (RE)", i)
 		}
+		start = time.Now()
 		bruteOut, abort, err := execCmdCapture(bruteExe, inputData, p.Dir, stopped, nil)
+		bruteMs := time.Since(start).Milliseconds()
 		if abort {
 			res.Stopped = true
 			return res, nil
@@ -218,7 +232,9 @@ func runStress(p project, count int, keepGoing bool, emit func(stressEvent), sto
 		}
 		expectedOut := normalizeOutput(bruteOut)
 
+		start = time.Now()
 		projOut, abort, err := execCmdCapture(projExe, inputData, p.Dir, stopped, projFIO)
+		projMs := time.Since(start).Milliseconds()
 		if abort {
 			res.Stopped = true
 			return res, nil
@@ -227,6 +243,14 @@ func runStress(p project, count int, keepGoing bool, emit func(stressEvent), sto
 			return res, fmt.Errorf("第 %d 轮: 项目程序运行时错误 (RE)", i)
 		}
 		userOut := normalizeOutput(projOut)
+
+		res.GenMs += genMs
+		res.BruteMs += bruteMs
+		res.ProjMs += projMs
+		if total := genMs + bruteMs + projMs; total > res.SlowRoundMs {
+			res.SlowRound = i
+			res.SlowRoundMs = total
+		}
 
 		if userOut != expectedOut {
 			if res.FailRound == 0 {
@@ -311,6 +335,25 @@ func execCmdCapture(exePath, inputStr, workDir string, stopped func() bool, fio 
 			}
 		}
 	}
+}
+
+// secs 把毫秒转成带一位小数的秒。
+func secs(ms int64) float64 {
+	return float64(ms) / 1000
+}
+
+// timingSummary 生成对拍耗时统计的展示文本（CLI 与 GUI 共用）。
+func timingSummary(res stressResult) string {
+	if res.SlowRound <= 0 {
+		return ""
+	}
+	rounds := res.Passed + res.Counterexamples
+	if rounds <= 0 {
+		rounds = 1
+	}
+	avg := (res.GenMs + res.BruteMs + res.ProjMs) / int64(rounds)
+	return fmt.Sprintf("耗时统计: gen %.1fs / brute %.1fs / 程序 %.1fs  平均 %dms/轮  最慢第 %d 轮（%dms）",
+		secs(res.GenMs), secs(res.BruteMs), secs(res.ProjMs), avg, res.SlowRound, res.SlowRoundMs)
 }
 
 func cleanupStressFiles(files ...string) {
