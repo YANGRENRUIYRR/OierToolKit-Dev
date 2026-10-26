@@ -462,13 +462,11 @@ func passRateBars(rates []passRate) fyne.CanvasObject {
 	title := canvas.NewText(tr("通过率"), theme.Color(theme.ColorNameForeground))
 	title.TextStyle = fyne.TextStyle{Bold: true}
 	title.TextSize = theme.TextSize()
-	// 标题上方那一格 spacer 就是两行文字之间的净空：概览行和标题都改成了
-	// 紧凑的 singleText（高度只报字号，见 textLineH），不再额外带行盒留白，
-	// 所以这里的 theme.Padding()（本主题 5px）就是肉眼量到的间距。
-	out := []fyne.CanvasObject{
-		container.NewGridWrap(fyne.NewSize(1, theme.Padding()), layout.NewSpacer()),
-		textLine(title),
-	}
+	// 标题上方不留 spacer（0px）：概览行和标题都是紧凑的 singleText（高度只报
+	// 字号，见 textLineH），两行行盒之间不留任何空隙。canvas.Text 自己还会把
+	// 首行字形画在行盒顶下方约 10px 处，所以肉眼看到的间距仍然存在，只是
+	// 这部分来自字体 ascent，不是布局空白。
+	out := []fyne.CanvasObject{textLine(title)}
 	for _, pr := range rates {
 		bar := newSlimBar(pr.Rate())
 		info := caption(fmt.Sprintf("%d/%d（%.0f%%）", pr.Solved, pr.Players, pr.Rate()*100))
