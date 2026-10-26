@@ -698,7 +698,10 @@ func cellRowWithColors(cells []string, colors []interface{}, widths []float32, h
 		t.TextSize = 13
 		t.Alignment = align
 		t.TextStyle = fyne.TextStyle{Bold: header}
-		objs = append(objs, container.NewGridWrap(fyne.NewSize(w, 26), t))
+		// 用 Center 包一层：GridWrap 只给固定宽高，canvas.Text 自己不会
+		// 垂直居中，直接用会让判定文字贴在下边缘。
+		cell := container.NewStack(container.NewCenter(t))
+		objs = append(objs, container.NewGridWrap(fyne.NewSize(w, 26), cell))
 	}
 	return container.NewHBox(objs...)
 }
