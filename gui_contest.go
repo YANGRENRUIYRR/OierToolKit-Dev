@@ -455,25 +455,94 @@ func passRateBars(rates []passRate) fyne.CanvasObject {
 	const blockW = 640
 
 	title := widget.NewLabelWithStyle("通过率", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	out := []fyne.CanvasObject{
-		container.NewGridWrap(fyne.NewSize(blockW, title.MinSize().Height), title),
-	}
+	out := []fyne.CanvasObject{title}
 	for _, pr := range rates {
-		bar := widget.NewProgressBar()
-		bar.SetValue(pr.Rate())
-		bar.TextFormatter = func() string {
-			return fmt.Sprintf("%d/%d（%.0f%%）", pr.Solved, pr.Players, pr.Rate()*100)
-		}
+		bar := newSlimBar(pr.Rate())
+		info := widget.NewLabel(fmt.Sprintf("%d/%d（%.0f%%）", pr.Solved, pr.Players, pr.Rate()*100))
+		name := widget.NewLabel(pr.Problem)
+		// 题名在左、数字在右，都套 Center 让文字在整行高度里垂直居中。
 		row := container.NewBorder(nil, nil,
-			container.NewGridWrap(fyne.NewSize(90, 30), widget.NewLabel(pr.Problem)),
-			nil, bar,
+			container.NewStack(container.NewCenter(container.NewHBox(name))),
+			container.NewStack(container.NewCenter(container.NewHBox(info))),
+			bar,
 		)
-		out = append(out, container.NewGridWrap(fyne.NewSize(blockW, 30), row))
+		out = append(out, row)
 	}
 	// 末尾留一段纯空白（不是分隔线），与下方榜单表格分开。
 	out = append(out, container.NewGridWrap(fyne.NewSize(blockW, 14), layout.NewSpacer()))
-	return container.NewVBox(out...)
+	block := container.NewVBox(out...)
+	// 用定宽格子把整块限在 blockW 宽（和评测进度一致），高度取内容实际
+	// MinSize，逐像素贴合就不会再产生上下空白。
+	return container.NewGridWrap(fyne.NewSize(blockW, block.MinSize().Height), block)
 }
+
+// slimBar 是自绘的细进度条：Fyne 的 widget.ProgressBar 最小高度约 36，
+// 强行压矮会留下错位空白，所以这里自己画背景、填充和居中文字。
+type slimBar struct {
+	widget.BaseWidget
+	ratio float64
+}
+
+func newSlimBar(ratio float64) *slimBar {
+	b := &slimBar{ratio: ratio}
+	b.ExtendBaseWidget(b)
+	return b
+}
+
+func (b *slimBar) MinSize() fyne.Size {
+	// 只画一条细条，纵向高度就是条本身。
+	return fyne.NewSize(220, theme.Padding()*2)
+}
+
+func (b *slimBar) CreateRenderer() fyne.WidgetRenderer {
+	bg := canvas.NewRectangle(theme.Color(theme.ColorNameInputBackground))
+	bg.CornerRadius = theme.Padding() / 2
+	fill := canvas.NewRectangle(theme.Color(theme.ColorNamePrimary))
+	fill.CornerRadius = theme.Padding() / 2
+	r := &slimBarRenderer{bar: b, bg: bg, fill: fill}
+	bg.Resize(fyne.NewSize(220, slimBarH))
+	fill.Resize(fyne.NewSize(220*float32(b.ratio), slimBarH))
+	return r
+}
+
+// slimBarH 是细条本身的视觉高度。
+const slimBarH = 8
+
+type slimBarRenderer struct {
+	bar      *slimBar
+	bg, fill *canvas.Rectangle
+}
+
+func (r *slimBarRenderer) Layout(size fyne.Size) {
+	top := (size.Height - slimBarH) / 2
+	r.bg.Move(fyne.NewPos(0, top))
+	r.bg.Resize(fyne.NewSize(size.Width, slimBarH))
+	w := size.Width * float32(r.bar.ratio)
+	if w < 0 {
+		w = 0
+	}
+	if w > size.Width {
+		w = size.Width
+	}
+	r.fill.Move(fyne.NewPos(0, top))
+	r.fill.Resize(fyne.NewSize(w, slimBarH))
+}
+
+func (r *slimBarRenderer) MinSize() fyne.Size {
+	return r.bar.MinSize()
+}
+
+func (r *slimBarRenderer) Objects() []fyne.CanvasObject {
+	return []fyne.CanvasObject{r.bg, r.fill}
+}
+
+func (r *slimBarRenderer) Refresh() {
+	r.bg.FillColor = theme.Color(theme.ColorNameInputBackground)
+	r.fill.FillColor = theme.Color(theme.ColorNamePrimary)
+	canvas.Refresh(r.bar)
+}
+
+func (r *slimBarRenderer) Destroy() {}
 
 // wrappedCenter 生成一段居中的可换行说明文字。
 func wrappedCenter(text string) fyne.CanvasObject {
