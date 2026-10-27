@@ -203,6 +203,17 @@ func runStress(p project, count int, keepGoing bool, emit func(stressEvent), sto
 	_ = os.MkdirAll(res.StressDir, 0755)
 	emit(stressEvent{Stage: stressStart, Total: count})
 
+	// 时限：gen/brute 给 30s 宽限；项目程序用配置时限的三倍（压测数据通常
+	// 比官方数据大，给余量），至少 15s——足够拦住死循环，又不误伤慢程序。
+	genLimit := 30 * time.Second
+	projLimit := time.Duration(0)
+	if t := floatProp(props, "time_limit", 0); t > 0 {
+		projLimit = time.Duration(t * 3 * float64(time.Second))
+		if min := 15 * time.Second; projLimit < min {
+			projLimit = min
+		}
+	}
+
 	for i := 1; i <= count; i++ {
 		if stopped() {
 			res.Stopped = true
@@ -211,35 +222,44 @@ func runStress(p project, count int, keepGoing bool, emit func(stressEvent), sto
 		emit(stressEvent{Stage: stressRound, Round: i, Total: count})
 
 		start := time.Now()
-		inputData, abort, err := execCmdCapture(genExe, "", p.Dir, stopped, nil)
+		inputData, abort, err := execCmdCapture(genExe, "", p.Dir, stopped, nil, genLimit)
 		genMs := time.Since(start).Milliseconds()
 		if abort {
 			res.Stopped = true
 			return res, nil
 		}
 		if err != nil {
+			if errors.Is(err, errStressTimeout) {
+				return res, fmt.Errorf(tr("第 %d 轮: gen 超时 (TLE，时限 %s)"), i, genLimit)
+			}
 			return res, fmt.Errorf(tr("第 %d 轮: gen 运行时错误 (RE)"), i)
 		}
 		start = time.Now()
-		bruteOut, abort, err := execCmdCapture(bruteExe, inputData, p.Dir, stopped, nil)
+		bruteOut, abort, err := execCmdCapture(bruteExe, inputData, p.Dir, stopped, nil, genLimit)
 		bruteMs := time.Since(start).Milliseconds()
 		if abort {
 			res.Stopped = true
 			return res, nil
 		}
 		if err != nil {
+			if errors.Is(err, errStressTimeout) {
+				return res, fmt.Errorf(tr("第 %d 轮: brute 超时 (TLE，时限 %s)"), i, genLimit)
+			}
 			return res, fmt.Errorf(tr("第 %d 轮: brute 运行时错误 (RE)"), i)
 		}
 		expectedOut := normalizeOutput(bruteOut)
 
 		start = time.Now()
-		projOut, abort, err := execCmdCapture(projExe, inputData, p.Dir, stopped, projFIO)
+		projOut, abort, err := execCmdCapture(projExe, inputData, p.Dir, stopped, projFIO, projLimit)
 		projMs := time.Since(start).Milliseconds()
 		if abort {
 			res.Stopped = true
 			return res, nil
 		}
 		if err != nil {
+			if errors.Is(err, errStressTimeout) {
+				return res, fmt.Errorf(tr("第 %d 轮: 项目程序超时 (TLE，时限 %s)"), i, projLimit)
+			}
 			return res, fmt.Errorf(tr("第 %d 轮: 项目程序运行时错误 (RE)"), i)
 		}
 		userOut := normalizeOutput(projOut)
@@ -273,11 +293,17 @@ func runStress(p project, count int, keepGoing bool, emit func(stressEvent), sto
 	return res, nil
 }
 
+// errStressTimeout 标记被测程序超过时限被强杀，调用方据此把 RE 文案
+// 换成 TLE。
+var errStressTimeout = errors.New("对拍程序超时")
+
 // execCmdCapture 以 inputStr 为标准输入运行程序，返回其标准输出。
 // fio 非 nil 时改为文件读写方式：inputStr 写入运行目录下的 fio.In，
 // 程序结束后读 fio.Out 作为输出。运行独享临时目录，可安全并发。
 // stopped 返回 true 时立即杀掉进程，并把 abort 置为 true。
-func execCmdCapture(exePath, inputStr, workDir string, stopped func() bool, fio *fileIO) (string, bool, error) {
+// timeLimit 是运行时限，超过即强杀并返回 errStressTimeout（0 表示不限），
+// 没有它，选手程序死循环或 gen 卡住时对拍会永久挂起。
+func execCmdCapture(exePath, inputStr, workDir string, stopped func() bool, fio *fileIO, timeLimit time.Duration) (string, bool, error) {
 	runDir := workDir
 	if fio.enabled() {
 		tmp, err := os.MkdirTemp(workDir, ".otk-io-")
@@ -317,9 +343,15 @@ func execCmdCapture(exePath, inputStr, workDir string, stopped func() bool, fio 
 		return string(data)
 	}
 
-	if stopped == nil {
+	if stopped == nil && timeLimit <= 0 {
 		err := <-done
 		return read(), false, err
+	}
+	var limitCh <-chan time.Time
+	if timeLimit > 0 {
+		timer := time.NewTimer(timeLimit)
+		defer timer.Stop()
+		limitCh = timer.C
 	}
 	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
@@ -327,6 +359,10 @@ func execCmdCapture(exePath, inputStr, workDir string, stopped func() bool, fio 
 		select {
 		case err := <-done:
 			return read(), false, err
+		case <-limitCh:
+			_ = cmd.Process.Kill()
+			<-done
+			return read(), false, fmt.Errorf("%w（超过 %s）", errStressTimeout, timeLimit)
 		case <-ticker.C:
 			if stopped() {
 				_ = cmd.Process.Kill()
@@ -352,7 +388,7 @@ func timingSummary(res stressResult) string {
 		rounds = 1
 	}
 	avg := (res.GenMs + res.BruteMs + res.ProjMs) / int64(rounds)
-	return fmt.Sprintf("耗时统计: gen %.1fs / brute %.1fs / 程序 %.1fs  平均 %dms/轮  最慢第 %d 轮（%dms）",
+	return fmt.Sprintf(tr("耗时统计: gen %.1fs / brute %.1fs / 程序 %.1fs  平均 %dms/轮  最慢第 %d 轮（%dms）"),
 		secs(res.GenMs), secs(res.BruteMs), secs(res.ProjMs), avg, res.SlowRound, res.SlowRoundMs)
 }
 

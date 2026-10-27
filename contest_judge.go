@@ -197,6 +197,10 @@ func judgeContest(c contest, emit func(judgeEvent), stopped func() bool) (contes
 
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, parallel)
+	// 停止监听 goroutine 的退出口：wg.Wait 之后它们就没有存在意义了，
+	// 不关掉的话每份提交泄漏一个 50ms ticker，长期运行会持续累积。
+	cancelWatch := make(chan struct{})
+	defer close(cancelWatch)
 	for _, src := range sources {
 		if halted() {
 			break
@@ -207,7 +211,7 @@ func judgeContest(c contest, emit func(judgeEvent), stopped func() bool) (contes
 			// 拿到并发槽位后要再确认一次：排队期间可能已经被取消。
 			select {
 			case sem <- struct{}{}:
-			case <-stopCh(stopped):
+			case <-stopCh(stopped, cancelWatch):
 				return
 			}
 			defer func() { <-sem }()
@@ -343,6 +347,10 @@ func judgeSubmission(c contest, prob contestProblem, src contestSource, buildDir
 		switch {
 		case run.timedOut:
 			to.Verdict = verdictTLE
+		case run.runErr != nil && run.memLimitHit:
+			// Windows 的内存硬限制通常以进程崩溃收场，光看 runErr 会把
+			// MLE 误判成 RE（与本地评测 judge.go 的判定保持一致）。
+			to.Verdict = verdictMLE
 		case run.runErr != nil:
 			to.Verdict = verdictRE
 			to.Message = strings.TrimSpace(run.stderr)
@@ -376,7 +384,9 @@ func judgeSubmission(c contest, prob contestProblem, src contestSource, buildDir
 
 // stopCh 把轮询式的停止信号包装成一个 channel，用于在排队等待并发槽位时
 // 及时退出（不额外开 goroutine 时，select 无法直接监视函数返回值）。
-func stopCh(stopped func() bool) <-chan struct{} {
+// done 关闭时监听 goroutine 自行退出，避免泄漏；正常跑完的评测从不触发
+// stopped，靠的就是这个出口。
+func stopCh(stopped func() bool, done <-chan struct{}) <-chan struct{} {
 	ch := make(chan struct{})
 	if stopped == nil {
 		// 永不触发。
@@ -385,10 +395,15 @@ func stopCh(stopped func() bool) <-chan struct{} {
 	go func() {
 		ticker := time.NewTicker(50 * time.Millisecond)
 		defer ticker.Stop()
-		for range ticker.C {
-			if stopped() {
-				close(ch)
+		for {
+			select {
+			case <-done:
 				return
+			case <-ticker.C:
+				if stopped() {
+					close(ch)
+					return
+				}
 			}
 		}
 	}()

@@ -482,7 +482,15 @@ func (g *guiApp) busy(on bool, msg string) {
 }
 
 // ui 从后台 goroutine 回到界面线程执行。
-func ui(fn func()) { fyne.Do(fn) }
+// 没有运行中的 Fyne App 时（某些单元测试环境）fyne.Do 会空指针，
+// 这里退化为直接调用——测试里只关心副作用被执行，不关心线程。
+func ui(fn func()) {
+	if fyne.CurrentApp() == nil {
+		fn()
+		return
+	}
+	fyne.Do(fn)
+}
 
 // dirExists 判断路径是否存在且为目录。
 func dirExists(path string) bool {

@@ -294,7 +294,7 @@ func (p *contestPage) addSubmission(player, problem, srcPath string) error {
 	if !ok {
 		return fmt.Errorf(tr("题目 %s 不存在"), problem)
 	}
-	_ = prob
+	_ = prob // 目前只做存在性校验；后续要按题目限制源码类型时再用
 	if !fileExists(srcPath) {
 		return fmt.Errorf(tr("源码文件不存在：%s"), srcPath)
 	}
@@ -379,6 +379,7 @@ func (p *contestPage) renamePlayer(from, to string) error {
 
 	oldDir := filepath.Join(p.c.sourceDir(), sanitizeFileName(from))
 	newDir := filepath.Join(p.c.sourceDir(), sanitizeFileName(to))
+	moved := false
 	if dirExists(oldDir) {
 		if dirExists(newDir) {
 			return fmt.Errorf(tr("目录 %s 已存在，改名前请先清理"), newDir)
@@ -386,8 +387,11 @@ func (p *contestPage) renamePlayer(from, to string) error {
 		if err := os.Rename(oldDir, newDir); err != nil {
 			return fmt.Errorf(tr("移动目录失败：%v"), err)
 		}
+		moved = true
 	}
 
+	// 先改内存配置，写盘成功才算改名完成；写盘失败要把目录移回去，
+	// 否则 contest.json 还指着旧路径，所有提交瞬间变“源码缺失”。
 	for i := range p.c.Cfg.Players {
 		if p.c.Cfg.Players[i].Name == from {
 			p.c.Cfg.Players[i].Name = to
@@ -399,7 +403,13 @@ func (p *contestPage) renamePlayer(from, to string) error {
 			p.c.Cfg.Sources[i].Path = filepath.ToSlash(filepath.Join("source", sanitizeFileName(to), sanitizeFileName(p.c.Cfg.Sources[i].Problem)+".cpp"))
 		}
 	}
-	p.persist()
+	if err := p.c.save(); err != nil {
+		if moved {
+			_ = os.Rename(newDir, oldDir)
+		}
+		return fmt.Errorf(tr("保存配置失败：%v"), err)
+	}
+	p.warns = validateContest(p.c)
 	if p.editor != nil {
 		p.editor.reload()
 	}

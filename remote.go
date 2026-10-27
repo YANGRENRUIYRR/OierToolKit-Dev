@@ -510,7 +510,7 @@ func submitSolution(p project, wait bool, onVerdict func(remoteVerdict), stopped
 	props := p.cfg()
 	base := strings.TrimRight(props["remote_base"], "/")
 	if base == "" {
-		return res, fmt.Errorf("该项目未配置远端（可从网站添加题目，或 otk config remote_base <地址> 与 otk config remote_id <题号>）")
+		return res, fmt.Errorf("%s", tr("该项目未配置远端（可从网站添加题目，或 otk config remote_base <地址> 与 otk config remote_id <题号>）"))
 	}
 	probID := props["remote_id"]
 	if probID == "" {

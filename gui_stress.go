@@ -167,9 +167,15 @@ func (s *stressPage) run() {
 
 	p := s.pg.p
 	keepGoing := s.keepChk.Checked
+	// 记下启动时的 generation：中途切走项目后，结束回调不能再去动
+	// 新页面的忙碌状态和控件（与 judgePage.run 一致）。
+	gen := s.pg.g.generation.Load()
 	go func() {
 		res, err := runStress(p, count, keepGoing, func(ev stressEvent) {
 			ui(func() {
+				if s.pg.g.generation.Load() != gen {
+					return
+				}
 				switch ev.Stage {
 				case stressCompile:
 					s.status.SetText(fmt.Sprintf(tr("已编译 %s（%d/3）"), ev.Name, ev.Done+1))
@@ -183,6 +189,9 @@ func (s *stressPage) run() {
 		}, func() bool { return s.cancel.Load() })
 
 		ui(func() {
+			if s.pg.g.generation.Load() != gen {
+				return
+			}
 			s.running.Store(false)
 			s.lastRes = &res
 			s.startBtn.Enable()
@@ -334,7 +343,16 @@ func stressRounds(dir string) []string {
 			rounds = append(rounds, round)
 		}
 	}
-	sort.Slice(rounds, func(i, j int) bool { return rounds[i] < rounds[j] })
+	// 轮次名通常是纯数字，按数值排才是自然的先后顺序（"2" 要在 "10" 前）；
+	// 出现非数字名字时退回字符串比较，保证排序稳定。
+	sort.Slice(rounds, func(i, j int) bool {
+		a, aerr := strconv.Atoi(rounds[i])
+		b, berr := strconv.Atoi(rounds[j])
+		if aerr == nil && berr == nil {
+			return a < b
+		}
+		return rounds[i] < rounds[j]
+	})
 	return rounds
 }
 

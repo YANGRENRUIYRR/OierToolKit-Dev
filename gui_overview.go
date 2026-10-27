@@ -249,9 +249,13 @@ func (o *overviewPage) markDirty() {
 		return
 	}
 	if o.savePending.CompareAndSwap(false, true) {
+		// AfterFunc 的回调跑在独立 goroutine，autoSave 要读输入框、写 note
+		// 标签，全部是 UI 操作，必须切回 UI 线程执行。
 		time.AfterFunc(400*time.Millisecond, func() {
-			o.savePending.Store(false)
-			o.autoSave()
+			ui(func() {
+				o.savePending.Store(false)
+				o.autoSave()
+			})
 		})
 	}
 	o.note.SetText(tr("配置修改中，稍后自动保存 …"))

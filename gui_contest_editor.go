@@ -634,11 +634,15 @@ func (p *contestPage) removeSubtask(probIdx, subIdx int) {
 }
 
 // scheduleSave 在下一次事件循环里合并写盘：连续打字不会产生几十次写文件。
+// AfterFunc 的回调跑在独立 goroutine 里，persist 会写 p.warns 并调用
+// setStatus/showError 这些 UI 操作，必须切回 UI 线程，否则和输入回调竞争。
 func (p *contestPage) scheduleSave() {
 	if p.savePending.CompareAndSwap(false, true) {
 		time.AfterFunc(300*time.Millisecond, func() {
-			p.savePending.Store(false)
-			p.persist()
+			ui(func() {
+				p.savePending.Store(false)
+				p.persist()
+			})
 		})
 	}
 	if p.g != nil {

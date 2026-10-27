@@ -30,7 +30,7 @@ import (
 //	powershell: otk completion powershell 写进 $PROFILE
 func cmdCompletion(args []string) {
 	if len(args) != 1 {
-		fatal("用法: otk completion bash|zsh|powershell")
+		fatal(tr("用法: otk completion bash|zsh|powershell"))
 	}
 	var script string
 	switch strings.ToLower(args[0]) {
@@ -41,7 +41,7 @@ func cmdCompletion(args []string) {
 	case "powershell", "ps", "pwsh":
 		script = powershellCompletion
 	default:
-		fatal("未知的 shell '%s'，支持 bash / zsh / powershell", args[0])
+		fatal(tr("未知的 shell '%s'，支持 bash / zsh / powershell"), args[0])
 	}
 	fmt.Print(script)
 }

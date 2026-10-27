@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"image/color"
 	"strings"
-	"sync"
 	"sync/atomic"
 
 	"fyne.io/fyne/v2"
@@ -59,7 +58,6 @@ type judgePage struct {
 	points     []pointResult
 	limit      float64
 	memCap     float64
-	warnings   []string
 	selectedID string
 
 	running atomic.Bool
@@ -167,7 +165,12 @@ func (j *judgePage) run() {
 		props := p.cfg()
 		limit, memCap := judgeLimits(props)
 		threads := judgeThreads(props)
-		j.setLimits(limit, memCap)
+		// limit 会被 UI 线程的列表模板与详情面板读取，写入必须回 UI 线程。
+		ui(func() {
+			if j.alive(gen) {
+				j.setLimits(limit, memCap)
+			}
+		})
 
 		log, ok := compileProjectTo(srcPath, exePath, props)
 		if !ok {
@@ -230,19 +233,17 @@ func (j *judgePage) run() {
 		}
 		total := len(index)
 
-		// 并发回调来自多个 goroutine：这里只做计数与结果入表，界面
-		// 更新全部经由 ui() 回到主线程，避免数据竞争。
-		var mu sync.Mutex
+		// 并发回调来自多个 goroutine：计数用原子量，j.points 的追加也放到
+		// ui() 里由主线程串行执行——列表模板随时可能在读它，后台写是竞争。
+		var doneCount int64
 		rep := evalSamples(job, func(pt pointResult) {
-			mu.Lock()
-			j.points = append(j.points, pt)
-			done := len(j.points)
-			mu.Unlock()
+			done := atomic.AddInt64(&doneCount, 1)
 			ui(func() {
 				if !j.alive(gen) {
 					return
 				}
 				j.limit = limit
+				j.points = append(j.points, pt)
 				j.list.Refresh()
 				if total > 0 {
 					j.bar.SetValue(float64(done) / float64(total))
@@ -251,7 +252,6 @@ func (j *judgePage) run() {
 			})
 		}, j.cancel.Load)
 		rep.Warnings = warnings
-		j.warnings = warnings
 
 		// 完整评测记入历史（中途取消的半截结果不记）。
 		if !j.cancel.Load() && len(rep.Points) > 0 {
@@ -608,7 +608,8 @@ func (j *judgePage) reload() {
 	j.status.SetText(tr("点“编译并评测”开始，默认跟随项目配置的时限与内存。"))
 }
 
-// setLimits 记录本次评测使用的时限与内存限制（后台线程安全，仅写数值）。
+// setLimits 记录本次评测使用的时限与内存限制。只能在 UI 线程调用：
+// 列表模板与详情面板会无锁读取这两个值。
 func (j *judgePage) setLimits(timeLimit, memLimit float64) {
 	j.limit, j.memCap = timeLimit, memLimit
 }

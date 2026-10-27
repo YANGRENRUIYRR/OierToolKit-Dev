@@ -18,8 +18,9 @@
 package main
 
 import (
-	"fmt"
+	"encoding/csv"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -120,23 +121,29 @@ func totalFullScore(c contest) float64 {
 	return sum
 }
 
-// rankingCSV 把榜单导出为 CSV 文本（UTF-8，含 BOM 便于 Excel 识别中文）。
+// rankingCSV 把榜单导出为 CSV 文件（UTF-8，含 BOM 便于 Excel 识别中文）。
+// 用 encoding/csv 写出：选手名或题目名里出现逗号、引号、换行时自动加引号
+// 转义，Excel 打开才不会错列。
 func rankingCSV(c contest, res contestResult) []byte {
 	rows := buildRanking(c, res)
 	var b strings.Builder
 	b.WriteString("\xEF\xBB\xBF")
-	b.WriteString(tr("名次,选手"))
+	w := csv.NewWriter(&b)
+	header := []string{tr("名次"), tr("选手")}
 	for _, prob := range res.Problems {
-		b.WriteString("," + prob)
+		header = append(header, prob)
 	}
-	b.WriteString(tr(",总分,满分题数\n"))
+	header = append(header, tr("总分"), tr("满分题数"))
+	_ = w.Write(header)
 	for _, row := range rows {
-		fmt.Fprintf(&b, "%d,%s", row.Rank, row.Player)
+		rec := []string{strconv.Itoa(row.Rank), row.Player}
 		for _, s := range row.Scores {
-			fmt.Fprintf(&b, ",%s", fmtScore(s))
+			rec = append(rec, fmtScore(s))
 		}
-		fmt.Fprintf(&b, ",%s,%d\n", fmtScore(row.Total), row.Solved)
+		rec = append(rec, fmtScore(row.Total), strconv.Itoa(row.Solved))
+		_ = w.Write(rec)
 	}
+	w.Flush()
 	return []byte(b.String())
 }
 

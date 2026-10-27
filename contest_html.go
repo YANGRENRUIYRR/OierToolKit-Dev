@@ -54,7 +54,7 @@ func renderContestHTML(c contest, res contestResult, rows []rankRow, full float6
 
 	b.WriteString("<div class=\"wrap\">\n")
 	fmt.Fprintf(&b, "<h1>%s</h1>\n", title)
-	fmt.Fprintf(&b, "<p class=\"meta\">共 %d 位选手 · %d 道题 · 满分 %.0f 分 · 评测于 %s</p>\n",
+	fmt.Fprintf(&b, "<p class=\"meta\">"+tr("共 %d 位选手 · %d 道题 · 满分 %.0f 分 · 评测于 %s")+"</p>\n",
 		len(rows), len(res.Problems), full, html.EscapeString(res.JudgedAt))
 
 	// 榜单表格：名次 / 选手 / 每题 / 总分。
@@ -92,7 +92,7 @@ func renderContestHTML(c contest, res contestResult, rows []rankRow, full float6
 			html.EscapeString(prob.Name), fullScoreOf(c, prob.Name), len(prob.Tests))
 
 		if len(prob.Subtasks) > 0 {
-			b.WriteString("<table class=\"sub\">\n<thead><tr><th>子任务</th><th>判定</th><th>分值</th>")
+			b.WriteString("<table class=\"sub\">\n<thead><tr><th>" + tr("子任务") + "</th><th>" + tr("判定") + "</th><th>" + tr("分值") + "</th>")
 			for _, row := range rows {
 				fmt.Fprintf(&b, "<th>%s</th>", html.EscapeString(row.Player))
 			}
@@ -119,7 +119,7 @@ func renderContestHTML(c contest, res contestResult, rows []rankRow, full float6
 
 		// 测试点状态矩阵，一眼看出谁挂在哪个点。
 		if len(prob.Tests) > 0 {
-			b.WriteString("<table class=\"sub compact\">\n<thead><tr><th>测试点</th><th>分值</th>")
+			b.WriteString("<table class=\"sub compact\">\n<thead><tr><th>" + tr("测试点") + "</th><th>" + tr("分值") + "</th>")
 			for _, row := range rows {
 				fmt.Fprintf(&b, "<th>%s</th>", html.EscapeString(row.Player))
 			}
