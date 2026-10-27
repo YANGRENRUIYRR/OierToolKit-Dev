@@ -27,7 +27,9 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -137,6 +139,9 @@ func newOverviewPage(pg *projectPage) *overviewPage {
 	removeBtn := deleteButton(tr("移除项目…"), func() {
 		pg.g.removeProjectDialog(pg.p)
 	})
+	packBtn := widget.NewButtonWithIcon(tr("打包 ZIP"), theme.DownloadIcon(), func() {
+		pg.g.exportProjectZip(pg.p)
+	})
 
 	info := container.NewVBox(
 		section(tr("项目")),
@@ -178,6 +183,8 @@ func newOverviewPage(pg *projectPage) *overviewPage {
 		widget.NewSeparator(),
 		section(tr("操作")),
 		container.NewHBox(refreshBtn, openBtn, editBtn, termBtn),
+		container.NewHBox(packBtn,
+			caption(tr("源码、样例与 .otk 配置打成一个 zip；编译产物不会带进去。"))),
 		container.NewHBox(removeBtn, layout.NewSpacer()),
 	)
 
@@ -338,4 +345,23 @@ func containsString(items []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// exportProjectZip 弹保存框把当前项目打包成 zip 数据包。
+// 默认文件名用项目名，落在用户上次选择的位置（保存框自己记忆）。
+func (g *guiApp) exportProjectZip(p project) {
+	save := dialog.NewFileSave(func(w fyne.URIWriteCloser, err error) {
+		if err != nil || w == nil {
+			return
+		}
+		out := w.URI().Path()
+		// 保存框会先把文件建出来，压缩包由 exportProjectArchive 自己写。
+		_ = w.Close()
+		g.runExport(tr("正在打包项目 ..."), func() (string, error) {
+			return exportProjectArchive(p, out)
+		})
+	}, g.win)
+	save.SetFileName(sanitizeFileName(p.Name) + ".zip")
+	save.SetFilter(storage.NewExtensionFileFilter([]string{".zip"}))
+	save.Show()
 }

@@ -52,6 +52,9 @@ type sheetOptions struct {
 	WidthRatio float64
 	// HeightRatio 占主窗口高度的比例（0 表示 0.82），下限 560px、上限 900px。
 	HeightRatio float64
+	// HideDismiss 隐藏底部的取消按钮（进度类面板只有「关闭」有意义，
+	// 两个「关闭」并排会让人以为它们不一样）。Esc 仍然关闭。
+	HideDismiss bool
 	OnConfirm   func()
 	OnDismiss   func()
 }
@@ -127,11 +130,18 @@ func (g *guiApp) showSheet(opt sheetOptions) {
 	dismissBtn := widget.NewButton(dismissText, cancel)
 	confirmBtn := widget.NewButtonWithIcon(confirmText, theme.ConfirmIcon(), doConfirm)
 
+	rightBtns := container.NewHBox(dismissBtn, confirmBtn)
+	escHint := caption(tr("Esc 取消"))
+	if opt.HideDismiss {
+		rightBtns = container.NewHBox(confirmBtn)
+		escHint = caption("")
+	}
+
 	foot := container.NewVBox(
 		widget.NewSeparator(),
 		container.NewPadded(container.NewBorder(nil, nil,
-			caption(tr("Esc 取消")),
-			container.NewHBox(dismissBtn, confirmBtn),
+			escHint,
+			rightBtns,
 		)),
 	)
 

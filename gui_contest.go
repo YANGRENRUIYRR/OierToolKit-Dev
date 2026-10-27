@@ -30,6 +30,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -47,10 +48,10 @@ type contestPage struct {
 	bar     *widget.ProgressBar
 	detail  *widget.Label
 
-	judgeBtn     *widget.Button
-	stopBtn      *widget.Button
-	exportBtn    *widget.Button
-	exportCsvBtn *widget.Button
+	judgeBtn  *widget.Button
+	stopBtn   *widget.Button
+	exportBtn *widget.Button
+	copyBtn   *widget.Button
 
 	editor      *contestEditor
 	boardHolder *fyne.Container
@@ -108,14 +109,16 @@ func newContestPage(g *guiApp, c contest) *contestPage {
 	p.judgeBtn.Importance = widget.HighImportance
 	p.stopBtn = widget.NewButtonWithIcon(tr("停止"), theme.MediaStopIcon(), p.stopJudge)
 	p.stopBtn.Disable()
-	p.exportBtn = widget.NewButtonWithIcon(tr("导出 HTML 榜单"), theme.DownloadIcon(), p.exportHTML)
+	p.copyBtn = widget.NewButtonWithIcon(tr("复制榜单"), theme.ContentCopyIcon(), p.copyRanking)
+	p.copyBtn.Disable()
+	// 导出合成一个菜单：HTML / CSV / Markdown 三个按钮横着排会把标题挤掉。
+	p.exportBtn = widget.NewButtonWithIcon(tr("导出…"), theme.DownloadIcon(), nil)
+	p.exportBtn.OnTapped = p.showExportMenu
 	p.exportBtn.Disable()
-	p.exportCsvBtn = widget.NewButtonWithIcon(tr("导出 CSV"), theme.GridIcon(), p.exportCSV)
-	p.exportCsvBtn.Disable()
 
 	// 标题与操作放同一行：评测状态紧跟按钮，不再被标题独占一行挤到下面。
 	titleRow := container.NewBorder(nil, nil, nil,
-		container.NewHBox(p.judgeBtn, p.stopBtn, p.exportBtn, p.exportCsvBtn),
+		container.NewHBox(p.judgeBtn, p.stopBtn, p.copyBtn, p.exportBtn),
 		container.NewVBox(p.title, p.meta),
 	)
 
@@ -312,6 +315,7 @@ func (p *contestPage) startJudge() {
 	p.judgeBtn.Disable()
 	p.stopBtn.Enable()
 	p.exportBtn.Disable()
+	p.copyBtn.Disable()
 	p.bar.SetValue(0)
 	p.bar.Show()
 	p.detail.SetText("")
@@ -374,6 +378,7 @@ func (p *contestPage) startJudge() {
 			p.bar.SetValue(1)
 			p.refreshBoard()
 			p.exportBtn.Enable()
+			p.copyBtn.Enable()
 			rows := buildRanking(c, res)
 			top := ""
 			if len(rows) > 0 {
@@ -453,7 +458,7 @@ func (p *contestPage) buildBoard() fyne.CanvasObject {
 		}
 	}
 	p.exportBtn.Enable()
-	p.exportCsvBtn.Enable()
+	p.copyBtn.Enable()
 	return container.NewVBox(items...)
 }
 
@@ -1134,6 +1139,64 @@ func (p *contestPage) exportHTML() {
 		openTip.Show()
 	}, p.g.win)
 	save.SetFileName(def)
+	save.Show()
+}
+
+// showExportMenu 弹出导出菜单：HTML / CSV / Markdown 三选一。
+// 三个按钮横排会把标题挤掉，收进菜单后按钮行只剩「复制榜单」与「导出…」。
+func (p *contestPage) showExportMenu() {
+	if p.g == nil || p.g.win == nil || p.g.win.Canvas() == nil {
+		return
+	}
+	menu := widget.NewPopUpMenu(fyne.NewMenu("",
+		fyne.NewMenuItem(tr("HTML 榜单"), p.exportHTML),
+		fyne.NewMenuItem(tr("CSV 表格"), p.exportCSV),
+		fyne.NewMenuItem(tr("Markdown 文档"), p.exportMarkdown),
+	), p.g.win.Canvas())
+	pos := fyne.CurrentApp().Driver().AbsolutePositionForObject(p.exportBtn)
+	x := pos.X
+	// 按钮贴着右边缘，菜单往右展开会被窗口裁掉：越界时整块左移回来。
+	// 用 MinSize 估算宽度——刚创建时 Size() 还是零，拿它判断等于没判。
+	if w := menu.MinSize().Width; x+w > p.g.win.Canvas().Size().Width {
+		x = p.g.win.Canvas().Size().Width - w - 8
+	}
+	menu.ShowAtPosition(fyne.NewPos(x, pos.Y+p.exportBtn.Size().Height))
+}
+
+// copyRanking 把榜单以 Markdown 文本放进剪贴板，方便直接贴到群里。
+func (p *contestPage) copyRanking() {
+	if !p.hasResult {
+		p.g.showError(fmt.Errorf("%s", tr("还没有评测结果")))
+		return
+	}
+	if p.g.win == nil || p.g.win.Clipboard() == nil {
+		return
+	}
+	p.g.win.Clipboard().SetContent(rankingMarkdown(p.c, p.res))
+	p.g.setStatus(tr("榜单已复制到剪贴板"))
+}
+
+// exportMarkdown 弹保存框导出 Markdown 榜单。
+func (p *contestPage) exportMarkdown() {
+	if !p.hasResult {
+		p.g.showError(fmt.Errorf("%s", tr("还没有评测结果")))
+		return
+	}
+	def := sanitizeFileName(p.c.Cfg.Name) + tr("-排名.md")
+	save := dialog.NewFileSave(func(w fyne.URIWriteCloser, err error) {
+		if err != nil || w == nil {
+			return
+		}
+		_, werr := w.Write([]byte(rankingMarkdown(p.c, p.res)))
+		_ = w.Close()
+		if werr != nil {
+			p.g.showError(fmt.Errorf(tr("导出失败：%v"), werr))
+			return
+		}
+		p.g.setStatus(tr("榜单 Markdown 已导出：") + w.URI().Path())
+	}, p.g.win)
+	save.SetFileName(def)
+	save.SetFilter(storage.NewExtensionFileFilter([]string{".md"}))
 	save.Show()
 }
 

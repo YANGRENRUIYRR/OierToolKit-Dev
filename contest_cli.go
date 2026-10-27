@@ -30,6 +30,7 @@ import (
 //
 //	otk contest add <上传目录|数据包.zip> [名称]  导入一场比赛
 //	otk contest export <名称> [zip 路径]        打包成数据包
+//	otk contest dup <名称> [新名称]             复制一场比赛
 //	otk contest ls                              列出全部比赛
 //	otk contest judge <名称>                    评测并生成 result.json
 //	otk contest rank [-w <文件>] <名称>         打印榜单（-w 导出 HTML）
@@ -45,6 +46,8 @@ func cmdContest(args []string) {
 		cmdContestAdd(args[1:])
 	case "export", "pack":
 		cmdContestExport(args[1:])
+	case "dup", "copy":
+		cmdContestDup(args[1:])
 	case "ls", "list":
 		cmdContestList()
 	case "judge", "j":
@@ -67,6 +70,7 @@ func printContestHelp() {
   add <上传目录> [名称]   导入一整场模拟赛（data/ + source/）
   add <数据包.zip> [名称] 从 zip 数据包导入（保留时限、子任务、题面）
   export <名称> [zip]     打包成 zip 数据包，默认写到比赛目录下
+  dup <名称> [新名称]     复制一场比赛（不含评测结果）
   ls                      列出已导入的比赛
   judge [名称]            评测整场比赛，结果写入比赛目录的 result.json
   rank [名称] [-w 文件]   查看榜单；-w 导出 HTML（默认比赛目录下）

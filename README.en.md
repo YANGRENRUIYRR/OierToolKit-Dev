@@ -96,9 +96,10 @@ Main commands at a glance (`otk help` for the full list):
 | `otk debug (d)` | Debug with gdb |
 | `otk edit (e)` | Open source file (global editor setting) |
 | `otk stress (ss) [N]` | Stress-test for N rounds (default 100) |
+| `otk pack (pk) [dir] [out.zip]` | Pack a project into a zip (source + samples + `.otk` settings, no build outputs) |
 | `otk wizard` | Guided tour for first-time users |
 | `otk gui` | Open the graphical interface (projects, samples, judging, stress testing, submit in one place); installers also create an `otk-gui` entry |
-| `otk contest add/export/judge/rank/rm` | Mock contests: import (folder or zip), pack and move, parallel judging, leaderboard and HTML export |
+| `otk contest add/export/dup/judge/rank/rm` | Mock contests: import (folder or zip), pack and move, duplicate, parallel judging, leaderboard and HTML export |
 
 ## 🏆 Mock Contests
 
@@ -129,6 +130,7 @@ otk contest rank                           # leaderboard in the terminal
 otk contest rank -w rank.html              # export a full leaderboard page with per-problem matrix
 otk contest export some-contest out.zip    # pack into a zip archive (results excluded)
 otk contest add out.zip                    # import it unchanged on another machine
+otk contest dup some-contest variant       # duplicate a contest; tweak one without touching the original
 otk contest rm <id>                        # delete a contest
 ```
 

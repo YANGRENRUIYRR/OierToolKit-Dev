@@ -35,6 +35,7 @@ var untranslatable = map[string]bool{
 	"...（已截断）":                           true, // 代码里是字符串截断占位符
 	"-排名.html":                           true, // 导出文件名后缀
 	"-排名.csv":                            true,
+	"-排名.md":                             true,
 	"Copyright (C) 2026 魇珩Gr3yPh4ntom\n": true,
 	"\n[otk] 程序未写出 ":                     true, // 与旧输出保持一致的诊断前缀
 }

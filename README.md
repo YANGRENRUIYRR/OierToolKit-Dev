@@ -103,10 +103,11 @@ otk j                         # 编译并评测
 | `otk debug (d)` | gdb 调试 |
 | `otk edit (e)` | 编辑源码（使用全局 editor 配置） |
 | `otk stress (ss) [N]` | 对拍 N 轮（默认 100） |
+| `otk pack (pk) [目录] [输出.zip]` | 把项目打包成 zip（源码 + 样例 + `.otk` 配置，不含编译产物） |
 | `otk wizard` | 新手向导，跟着引导走一遍工作流 |
 | `otk completion bash\|zsh\|powershell` | 输出 shell 补全脚本（source 进配置文件即可） |
 | `otk gui` | 打开图形界面（项目库、样例、评测、对拍、提交一站搞定）；安装脚本还会生成 `otk-gui` 入口，双击即进 GUI |
-| `otk contest add/export/judge/rank/rm` | 模拟赛：导入比赛（目录或 zip）、打包搬家、并发评测、查看与导出榜单 |
+| `otk contest add/export/dup/judge/rank/rm` | 模拟赛：导入比赛（目录或 zip）、打包搬家、复制副本、并发评测、查看与导出榜单 |
 
 ## 🏆 模拟赛
 
@@ -136,6 +137,7 @@ otk contest judge                          # 并发编译 + 评测（默认 NumC
 otk contest rank                           # 终端里看榜单
 otk contest rank -w rank.html              # 导出完整榜单页（含每题明细矩阵）
 otk contest export 某次模拟赛 out.zip      # 打包成 zip 数据包（不带评测结果）
+otk contest dup 某次模拟赛 改动版          # 复制一场比赛，随便改不影响原件
 otk contest add out.zip                    # 在另一台机器上原样导入
 otk contest rm <id>                        # 删除比赛
 ```

@@ -47,7 +47,7 @@ func cmdCompletion(args []string) {
 }
 
 // otkCommands 是补全脚本共用的子命令清单，改命令列表时同步更新。
-const otkCommands = "init status st ls search se rm cd refresh rf samples clone submit sub config judge j history his run r debug d edit e stress ss contest gui show wizard doctor help h version v completion"
+const otkCommands = "init status st ls search se rm cd refresh rf samples clone submit sub config judge j history his run r debug d edit e stress ss pack pk contest gui show wizard doctor help h version v completion"
 
 const bashCompletion = `# otk bash 补全 —— 写进 ~/.bashrc：source <(otk completion bash)
 _otk_completions() {
@@ -103,6 +103,7 @@ _otk() {
         'debug:gdb 调试'
         'edit:编辑源码'
         'stress:对拍'
+        'pack:把项目打包成 zip'
         'contest:模拟赛'
         'gui:打开图形界面'
         'show:担保或许可证'

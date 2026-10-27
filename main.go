@@ -79,6 +79,8 @@ var cmdAlias = map[string]string{
 	"e":          "edit",
 	"stress":     "stress",
 	"ss":         "stress",
+	"pack":       "pack",
+	"pk":         "pack",
 	"contest":    "contest",
 	"ct":         "contest",
 	"gui":        "gui",
@@ -151,6 +153,8 @@ func main() {
 		cmdEdit()
 	case "stress":
 		cmdStress(args[1:])
+	case "pack":
+		cmdPack(args[1:])
 	case "contest":
 		cmdContest(args[1:])
 	case "gui":
@@ -293,6 +297,7 @@ func printUsage(w io.Writer) {
   otk se <正则>          搜索项目
   otk rm [--soft|--hard] [名称]  移除项目
   otk cd [名称]          在新 shell 中打开项目目录
+  otk pack | pk [目录] [输出.zip]  把项目打包（源码 + 样例 + .otk 配置）
 
 样例:
   otk refresh | rf       同步样例库
@@ -319,6 +324,8 @@ func printUsage(w io.Writer) {
   otk contest ls                       列出已导入的比赛
   otk contest judge [名称]             评测整场比赛并生成榜单
   otk contest rank [名称] [-w 文件]    查看榜单，-w 导出 HTML
+  otk contest export <名称> [输出.zip] 导出比赛数据包
+  otk contest dup <名称> [新名称]      复制一场比赛
 
 杂项:
   otk gui                打开图形界面（安装脚本也会生成 otk-gui 入口，双击即进 GUI）

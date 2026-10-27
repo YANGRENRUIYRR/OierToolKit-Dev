@@ -273,6 +273,13 @@ func (g *guiApp) settingsDialog() {
 	langSel.SetSelected(languageChoiceFromValue(guiPref(prefLang, "auto")))
 	langNote := caption(tr("语言改动在重启应用后生效。"))
 
+	// 主题：跟随系统 / 浅色 / 深色。按序号的写法与并发度一致，
+	// 切换界面语言后选项文案会变，不能拿显示文本当键。
+	themeSel := widget.NewSelect(themeLabels(), nil)
+	themeSel.SetSelectedIndex(themeIndexFromValue(guiPref(prefTheme, "auto")))
+	themeNote := caption(tr("主题改动在重启应用后生效；") +
+		tr("“跟随系统”会跟着 Windows 的浅色/深色设置走。"))
+
 	// 评测并发度：首项是「自动」，其余是固定值。用序号而不是文案做判断，
 	// 避免切换语言后选项文本变化导致解析错乱。
 	parallelChoices := []string{tr("自动（推荐）"), "1", "2", "4", "8", "12", "16", "24", "32"}
@@ -293,8 +300,10 @@ func (g *guiApp) settingsDialog() {
 		widget.NewForm(
 			widget.NewFormItem(tr("窗口模式"), fullscreen),
 			widget.NewFormItem(tr("界面语言"), langSel),
+			widget.NewFormItem(tr("主题"), themeSel),
 		),
 		langNote,
+		themeNote,
 		caption(tr("全屏会保留系统标题栏和右上角的最小化、最大化、关闭按钮；")+
 			tr("也可以用 F11 随时切换，Esc 退出全屏。")),
 		widget.NewSeparator(),
@@ -350,6 +359,12 @@ func (g *guiApp) settingsDialog() {
 			}
 			if langSel.Selected != "" {
 				if err := setGuiPref(prefLang, languageValueFromChoice(langSel.Selected)); err != nil {
+					g.showError(err)
+					return
+				}
+			}
+			if idx := themeSel.SelectedIndex(); idx >= 0 && idx < len(themeValues) {
+				if err := setGuiPref(prefTheme, themeValues[idx]); err != nil {
 					g.showError(err)
 					return
 				}

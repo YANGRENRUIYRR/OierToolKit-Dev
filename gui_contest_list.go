@@ -222,8 +222,9 @@ func (g *guiApp) contestTable(list []contest) (fyne.CanvasObject, fyne.CanvasObj
 	openBtn.Importance = widget.HighImportance
 	dirBtn := widget.NewButtonWithIcon(tr("打开目录"), theme.FolderOpenIcon(), nil)
 	zipBtn := widget.NewButtonWithIcon(tr("导出 ZIP"), theme.DownloadIcon(), nil)
+	dupBtn := widget.NewButtonWithIcon(tr("复制"), theme.ContentCopyIcon(), nil)
 	delBtn := deleteIconButton(tr("删除这场模拟赛"), nil)
-	actions := container.NewHBox(openBtn, dirBtn, zipBtn, delBtn)
+	actions := container.NewHBox(openBtn, dirBtn, zipBtn, dupBtn, delBtn)
 
 	var selected int = -1
 	refreshActions := func() {
@@ -231,12 +232,14 @@ func (g *guiApp) contestTable(list []contest) (fyne.CanvasObject, fyne.CanvasObj
 			openBtn.Disable()
 			dirBtn.Disable()
 			zipBtn.Disable()
+			dupBtn.Disable()
 			delBtn.Disable()
 			return
 		}
 		openBtn.Enable()
 		dirBtn.Enable()
 		zipBtn.Enable()
+		dupBtn.Enable()
 		delBtn.Enable()
 	}
 	refreshActions()
@@ -249,6 +252,11 @@ func (g *guiApp) contestTable(list []contest) (fyne.CanvasObject, fyne.CanvasObj
 	zipBtn.OnTapped = func() {
 		if selected >= 0 && selected < len(rows) {
 			g.exportContestZip(rows[selected].c)
+		}
+	}
+	dupBtn.OnTapped = func() {
+		if selected >= 0 && selected < len(rows) {
+			g.duplicateContestDialog(rows[selected].c)
 		}
 	}
 	dirBtn.OnTapped = func() {
@@ -449,4 +457,38 @@ func (g *guiApp) runExport(busyMsg string, fn func() (string, error)) {
 			g.setStatus(tr("数据包已导出：") + path)
 		})
 	}()
+}
+
+// duplicateContestDialog 让用户填新名字，然后把整场比赛复制一份。
+// 默认给出「<原名> 副本」，直接回车即可——这是最常用的用法。
+func (g *guiApp) duplicateContestDialog(c contest) {
+	nameEntry := widget.NewEntry()
+	nameEntry.SetText(c.Cfg.Name + " " + tr("副本"))
+
+	content := container.NewVBox(
+		widget.NewForm(widget.NewFormItem(tr("新名称"), nameEntry)),
+		caption(tr("题目配置、测试数据与选手源码都会复制一份。")),
+		caption(tr("评测结果不复制：新比赛要重新评测。")),
+	)
+
+	dialog.ShowCustomConfirm(tr("复制模拟赛"), tr("复制"), tr("取消"), content, func(ok bool) {
+		if !ok {
+			return
+		}
+		name := strings.TrimSpace(nameEntry.Text)
+		g.busy(true, tr("正在复制模拟赛 ..."))
+		go func() {
+			dup, err := duplicateContest(c, name)
+			ui(func() {
+				if err != nil {
+					g.busy(false, tr("复制失败"))
+					g.showError(err)
+					return
+				}
+				g.busy(false, tr("模拟赛已复制"))
+				g.showContestList()
+				g.setStatus(tr("已复制为 ") + dup.Cfg.Name)
+			})
+		}()
+	}, g.win)
 }

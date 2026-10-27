@@ -19,6 +19,7 @@ package main
 
 import (
 	"encoding/csv"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -145,6 +146,67 @@ func rankingCSV(c contest, res contestResult) []byte {
 	}
 	w.Flush()
 	return []byte(b.String())
+}
+
+// rankingMarkdown 把榜单渲染成 Markdown：直接贴进群聊、issue 或文档
+// 都能正常显示成表格，比 CSV 更适合人读。
+//
+// 名次列右对齐、选手列左对齐，分数列一律右对齐——贴到聊天软件里
+// 数字对得齐，一眼能看出谁差在哪道题上。
+func rankingMarkdown(c contest, res contestResult) string {
+	rows := buildRanking(c, res)
+	var b strings.Builder
+
+	if name := strings.TrimSpace(c.Cfg.Name); name != "" {
+		b.WriteString("## " + name + "\n\n")
+	}
+
+	head := []string{tr("名次"), tr("选手")}
+	align := []string{"---:", ":---"}
+	for _, prob := range res.Problems {
+		head = append(head, mdCell(prob))
+		align = append(align, "---:")
+	}
+	head = append(head, tr("总分"), tr("满分题数"))
+	align = append(align, "---:", "---:")
+
+	b.WriteString("| " + strings.Join(head, " | ") + " |\n")
+	b.WriteString("| " + strings.Join(align, " | ") + " |\n")
+	for _, row := range rows {
+		cells := []string{strconv.Itoa(row.Rank), mdCell(row.Player)}
+		for _, s := range row.Scores {
+			cells = append(cells, fmtScore(s))
+		}
+		cells = append(cells, fmtScore(row.Total), strconv.Itoa(row.Solved))
+		b.WriteString("| " + strings.Join(cells, " | ") + " |\n")
+	}
+
+	// 每题的满分率单独一行：表格里只有分数，看不出"这题挂了多少人"。
+	var rates []string
+	for _, pr := range passRates(c, res) {
+		if pr.Players == 0 {
+			continue
+		}
+		rates = append(rates, fmt.Sprintf("%s %s（%d/%d）",
+			mdCell(pr.Problem), fmtPercent(pr.Rate()), pr.Solved, pr.Players))
+	}
+	if len(rates) > 0 {
+		b.WriteString("\n" + tr("满分率：") + strings.Join(rates, " · ") + "\n")
+	}
+	return b.String()
+}
+
+// mdCell 转义 Markdown 表格里的竖线与换行，避免选手名把表格撑破。
+func mdCell(s string) string {
+	s = strings.ReplaceAll(s, "|", "\\|")
+	s = strings.ReplaceAll(s, "\r\n", " ")
+	s = strings.ReplaceAll(s, "\n", " ")
+	return s
+}
+
+// fmtPercent 把 0~1 的比例写成一位小数的百分比。
+func fmtPercent(v float64) string {
+	return strconv.FormatFloat(v*100, 'f', 1, 64) + "%"
 }
 
 // passRate 是一道题的通过情况。

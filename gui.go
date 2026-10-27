@@ -85,6 +85,9 @@ func cmdGui() {
 	// 先装中文词条，再建窗口：Fyne 的控件在构造时就会取翻译文本。
 	installTranslations()
 
+	// 主题变体只在创建 App 时读一次，必须赶在 app.NewWithID 之前。
+	applyThemeEnv()
+
 	a := app.NewWithID("cn.gr3yph4ntom.otk")
 	a.Settings().SetTheme(newOtkTheme())
 
@@ -324,14 +327,20 @@ func (g *guiApp) buildSidebar() fyne.CanvasObject {
 
 	contestBtn := widget.NewButtonWithIcon(tr("模拟赛"), theme.GridIcon(), g.showContestList)
 	contestBtn.Alignment = widget.ButtonAlignLeading
+	batchBtn := widget.NewButtonWithIcon(tr("批量评测"), theme.MediaPlayIcon(), g.batchJudgeDialog)
+	batchBtn.Alignment = widget.ButtonAlignLeading
 
 	head := container.NewVBox(
 		container.NewPadded(container.NewVBox(
 			section(tr("模拟赛")),
 			contestBtn,
 		)),
+		widget.NewSeparator(),
+		container.NewPadded(container.NewVBox(
+			section(tr("项目库")),
+			batchBtn,
+		)),
 		container.NewPadded(g.search),
-		container.NewPadded(section(tr("项目库"))),
 	)
 	foot := container.NewPadded(g.count)
 

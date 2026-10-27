@@ -20,10 +20,51 @@ package main
 import (
 	_ "embed"
 	"image/color"
+	"os"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/theme"
 )
+
+// themeValues 是存进偏好文件的值；auto 表示交给系统。
+// 显示文案由 themeLabels 在调用时翻译——包级变量里不能调 tr()，
+// 那时 baseDir 还没初始化。
+var themeValues = []string{"auto", "light", "dark"}
+
+// themeLabels 返回设置页下拉框的显示文案，与 themeValues 一一对应。
+func themeLabels() []string {
+	return []string{tr("跟随系统"), tr("浅色"), tr("深色")}
+}
+
+// applyThemeEnv 按偏好决定浅色还是深色。
+//
+// Fyne 没有公开 API 在运行时改主题变体：变体只在创建 App 时读一次
+// FYNE_THEME 环境变量与偏好里的主题名，之后 Settings().ThemeVariant()
+// 一直返回那个值。所以这里在 app.NewWithID 之前落一次环境变量，
+// 改主题要重启才生效——和界面语言同一个规则，行为一致。
+//
+// 只写环境变量、不改主题对象：界面里所有取色都问 ThemeVariant()，
+// 两条来源必须一致，否则会出现"控件按深色画、背景按浅色画"的花脸。
+func applyThemeEnv() {
+	switch strings.ToLower(strings.TrimSpace(guiPref(prefTheme, "auto"))) {
+	case "light":
+		_ = os.Setenv("FYNE_THEME", "light")
+	case "dark":
+		_ = os.Setenv("FYNE_THEME", "dark")
+	}
+}
+
+// themeIndexFromValue 把偏好值转成下拉框下标（未知值按"跟随系统"）。
+func themeIndexFromValue(v string) int {
+	v = strings.ToLower(strings.TrimSpace(v))
+	for i, val := range themeValues {
+		if val == v {
+			return i
+		}
+	}
+	return 0
+}
 
 // 内置中文字体：Fyne 自带字体不含 CJK 字形，不打字体的话界面会出现豆腐块。
 // 这里用的是 Noto Sans SC 的 GB2312 子集（SIL OFL 1.1，见 assets/font/OFL.txt），

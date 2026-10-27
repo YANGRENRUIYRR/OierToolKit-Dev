@@ -23,6 +23,8 @@ tmp_build/
 # ---- 测试与用户数据 ----
 # 测试源码（*_test.go）进版本库，CI 上会跑 go test ./...
 /contests/
+# baseDir 为空时项目库会写到当前目录（测试没设临时目录的兜底）
+/registry
 
 # ---- 临时截图 ----
 # 用路径前缀精确匹配：./shot.png 会被忽略，而 assets/ 与仓库自带的
