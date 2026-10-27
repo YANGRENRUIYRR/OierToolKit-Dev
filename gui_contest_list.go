@@ -58,32 +58,123 @@ func (g *guiApp) buildContestList() fyne.CanvasObject {
 		return container.NewBorder(head, nil, nil, nil, empty)
 	}
 
-	box := container.NewVBox()
-	for _, c := range list {
-		box.Add(g.contestListRow(c))
-	}
-
-	foot := container.NewPadded(caption(fmt.Sprintf(tr("共 %d 场比赛 · 数据存放在 %s"), len(list), contestsDir())))
-	return container.NewBorder(head, foot, nil, nil, container.NewVScroll(container.NewPadded(box)))
+	table, actions := g.contestTable(list)
+	foot := container.NewPadded(container.NewBorder(nil, nil,
+		caption(fmt.Sprintf(tr("共 %d 场比赛 · 数据存放在 %s"), len(list), contestsDir())),
+		actions, nil))
+	return container.NewBorder(head, foot, nil, nil, table)
 }
 
-// contestListRow 是比赛列表中的一行卡片。
-func (g *guiApp) contestListRow(c contest) fyne.CanvasObject {
-	open := widget.NewButtonWithIcon(tr("打开"), theme.NavigateNextIcon(), func() {
-		g.showContest(c)
-	})
-	open.Importance = widget.HighImportance
-
-	name := widget.NewLabelWithStyle(c.Cfg.Name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	judged := tr("未评测")
-	if _, ok := loadContestResult(c); ok {
-		judged = tr("已评测")
+// contestTable 用表格展示所有比赛：选中一行后，底部按钮条提供打开、
+// 打开目录与删除操作。返回表格本体和按钮条。
+func (g *guiApp) contestTable(list []contest) (fyne.CanvasObject, fyne.CanvasObject) {
+	type row struct {
+		c                                contest
+		name, problems, players, sources string
+		status, imported                 string
 	}
-	info := caption(fmt.Sprintf(tr("%d 道题 · %d 位选手 · %d 份提交 · 满分 %s 分 · %s · %s"),
-		len(c.Cfg.Problems), len(c.Cfg.Players), len(c.Cfg.Sources),
-		fmtScore(totalFullScore(c)), judged, c.Cfg.ImportedAt))
+	rows := make([]row, len(list))
+	for i, c := range list {
+		status := tr("未评测")
+		if _, ok := loadContestResult(c); ok {
+			status = tr("已评测")
+		}
+		rows[i] = row{
+			c:        c,
+			name:     c.Cfg.Name,
+			problems: fmt.Sprintf("%d", len(c.Cfg.Problems)),
+			players:  fmt.Sprintf("%d", len(c.Cfg.Players)),
+			sources:  fmt.Sprintf("%d", len(c.Cfg.Sources)),
+			status:   status,
+			imported: c.Cfg.ImportedAt,
+		}
+	}
 
-	remove := deleteIconButton(tr("删除这场模拟赛"), func() {
+	// 列宽全部固定：表头用同样宽度的格子拼出来，才能和表体对齐。
+	cols := []struct {
+		title string
+		width float32
+	}{
+		{tr("比赛"), 240},
+		{tr("题数"), 56},
+		{tr("选手"), 56},
+		{tr("提交数"), 64},
+		{tr("状态"), 84},
+		{tr("导入时间"), 180},
+	}
+
+	headers := container.NewHBox()
+	for _, col := range cols {
+		headers.Add(container.NewGridWrap(fyne.NewSize(col.width, 22),
+			widget.NewLabelWithStyle(col.title, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})))
+	}
+
+	table := widget.NewTable(
+		func() (int, int) { return len(rows), len(cols) },
+		func() fyne.CanvasObject { return widget.NewLabel("") },
+		func(id widget.TableCellID, obj fyne.CanvasObject) {
+			lbl := obj.(*widget.Label)
+			r := rows[id.Row]
+			switch id.Col {
+			case 0:
+				lbl.TextStyle = fyne.TextStyle{Bold: true}
+				lbl.SetText(r.name)
+			case 1:
+				lbl.TextStyle = fyne.TextStyle{}
+				lbl.SetText(r.problems)
+			case 2:
+				lbl.SetText(r.players)
+			case 3:
+				lbl.SetText(r.sources)
+			case 4:
+				lbl.SetText(r.status)
+			case 5:
+				lbl.SetText(r.imported)
+			}
+		},
+	)
+	for i, col := range cols {
+		table.SetColumnWidth(i, col.width)
+	}
+
+	openBtn := widget.NewButtonWithIcon(tr("打开"), theme.NavigateNextIcon(), nil)
+	openBtn.Importance = widget.HighImportance
+	dirBtn := widget.NewButtonWithIcon(tr("打开目录"), theme.FolderOpenIcon(), nil)
+	delBtn := deleteIconButton(tr("删除这场模拟赛"), nil)
+	actions := container.NewHBox(openBtn, dirBtn, delBtn)
+
+	var selected int = -1
+	refreshActions := func() {
+		if selected < 0 || selected >= len(rows) {
+			openBtn.Disable()
+			dirBtn.Disable()
+			delBtn.Disable()
+			return
+		}
+		openBtn.Enable()
+		dirBtn.Enable()
+		delBtn.Enable()
+	}
+	refreshActions()
+
+	openBtn.OnTapped = func() {
+		if selected >= 0 && selected < len(rows) {
+			g.showContest(rows[selected].c)
+		}
+	}
+	dirBtn.OnTapped = func() {
+		if selected < 0 || selected >= len(rows) {
+			return
+		}
+		if err := openPath(rows[selected].c.Dir); err != nil {
+			g.showError(err)
+		}
+	}
+	delBtn.OnTapped = func() {
+		if selected < 0 || selected >= len(rows) {
+			return
+		}
+		c := rows[selected].c
 		confirm := dialog.NewConfirm(tr("删除模拟赛"),
 			tr("将删除整场比赛及其数据：")+"\n"+c.Dir, func(ok bool) {
 				if !ok {
@@ -98,17 +189,17 @@ func (g *guiApp) contestListRow(c contest) fyne.CanvasObject {
 			}, g.win)
 		confirm.SetConfirmText(tr("删除"))
 		confirm.Show()
-	})
+	}
+	table.OnSelected = func(id widget.TableCellID) {
+		selected = id.Row
+		refreshActions()
+	}
+	table.OnUnselected = func(widget.TableCellID) {
+		selected = -1
+		refreshActions()
+	}
 
-	dirBtn := widget.NewButtonWithIcon("", theme.FolderOpenIcon(), func() {
-		if err := openPath(c.Dir); err != nil {
-			g.showError(err)
-		}
-	})
-
-	right := container.NewHBox(open, dirBtn, remove)
-	card := container.NewBorder(nil, nil, nil, right, container.NewVBox(name, info))
-	return container.NewVBox(container.NewPadded(card), widget.NewSeparator())
+	return container.NewBorder(headers, nil, nil, nil, table), actions
 }
 
 // showContest 打开某场比赛的工作台。
