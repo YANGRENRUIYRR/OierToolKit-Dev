@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"image/color"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync/atomic"
 
@@ -57,6 +58,11 @@ type contestPage struct {
 
 	res       contestResult
 	hasResult bool
+
+	// 榜单排序状态：0 = 默认按总分；2..n+1 = 题目列；n+2 = 总分列。
+	// 点击表头切换，再点同一列反转方向。
+	rankSortCol  int
+	rankSortDesc bool
 
 	running atomic.Bool
 	cancel  atomic.Bool
@@ -710,8 +716,11 @@ func wrappedCenter(text string) fyne.CanvasObject {
 }
 
 // rankingTable 用 canvas 画一张对齐的榜单（Fyne 没有表格控件）。
+// 题目列和总分列的表头可以点击：点一下按该列降序，再点反转；
+// 名次列始终按原始总分的名次显示，不受当前排序影响。
 func (p *contestPage) rankingTable(rows []rankRow, full float64) fyne.CanvasObject {
 	c := p.c
+	problemCols := len(p.res.Problems)
 	headers := []string{"#", tr("选手")}
 	headers = append(headers, p.res.Problems...)
 	headers = append(headers, tr("总分"))
@@ -722,23 +731,136 @@ func (p *contestPage) rankingTable(rows []rankRow, full float64) fyne.CanvasObje
 	}
 	widths = append(widths, 78)
 
-	header := cellRow(headers, widths, true)
-	objects := []fyne.CanvasObject{header, widget.NewSeparator()}
-	for _, row := range rows {
-		cells := []string{fmt.Sprintf("%d", row.Rank), row.Player}
-		colors := []interface{}{toneNone, toneNone}
-		for i, s := range row.Scores {
-			cells = append(cells, fmtScore(s))
-			colors = append(colors, scoreToneOf(c, p.res.Problems[i], s))
-		}
-		cells = append(cells, fmtScore(row.Total))
-		colors = append(colors, toneNone)
-		objects = append(objects, cellRowWithColors(cells, colors, widths, false))
-	}
-
 	_ = full
-	return container.NewVBox(objects...)
+	box := container.NewVBox()
+	// 先声明再赋值：:= 的作用域从语句之后才开始，闭包里引用不到。
+	var rebuild func()
+	rebuild = func() {
+		// 表头：# 和选手名不可排，其余列可点击排序。
+		head := make([]fyne.CanvasObject, 0, len(headers))
+		for i, h := range headers {
+			if i < 2 {
+				head = append(head, plainHeaderCell(h, widths[i]))
+				continue
+			}
+			title := h
+			if i == p.rankSortCol {
+				if p.rankSortDesc {
+					title += " ▼"
+				} else {
+					title += " ▲"
+				}
+			}
+			idx, desc := i, p.rankSortDesc
+			head = append(head, newTapHeaderCell(title, widths[i], i == p.rankSortCol, func() {
+				if p.rankSortCol == idx {
+					p.rankSortDesc = !desc
+				} else {
+					p.rankSortCol = idx
+					p.rankSortDesc = true
+				}
+				rebuild()
+			}))
+		}
+		objs := []fyne.CanvasObject{container.NewHBox(head...), widget.NewSeparator()}
+
+		// 视图行：默认顺序用 buildRanking 的结果；点了表头才重排。
+		// Rank 保留原值——它是按总分算出来的名次，重排视图不该改。
+		view := append([]rankRow(nil), rows...)
+		if p.rankSortCol >= 2 {
+			col, desc := p.rankSortCol, p.rankSortDesc
+			sort.SliceStable(view, func(a, b int) bool {
+				x, y := view[a].Total, view[b].Total
+				if col < 2+problemCols {
+					x, y = view[a].Scores[col-2], view[b].Scores[col-2]
+				}
+				if x != y {
+					if desc {
+						return x > y
+					}
+					return x < y
+				}
+				// 同分：总分高在前，再按姓名。
+				if view[a].Total != view[b].Total {
+					return view[a].Total > view[b].Total
+				}
+				return view[a].Player < view[b].Player
+			})
+		}
+		for _, row := range view {
+			cells := []string{fmt.Sprintf("%d", row.Rank), row.Player}
+			colors := []interface{}{toneNone, toneNone}
+			for i, s := range row.Scores {
+				cells = append(cells, fmtScore(s))
+				colors = append(colors, scoreToneOf(c, p.res.Problems[i], s))
+			}
+			cells = append(cells, fmtScore(row.Total))
+			colors = append(colors, toneNone)
+			objs = append(objs, cellRowWithColors(cells, colors, widths, false))
+		}
+		box.Objects = objs
+		box.Refresh()
+	}
+	rebuild()
+	return box
 }
+
+// plainHeaderCell 是不可点击的表头格子，样式与 cellRow(header) 一致。
+func plainHeaderCell(text string, w float32) fyne.CanvasObject {
+	t := canvas.NewText(text, theme.Color(theme.ColorNameDisabled))
+	t.TextSize = 13
+	t.TextStyle = fyne.TextStyle{Bold: true}
+	return container.NewGridWrap(fyne.NewSize(w, 26), container.NewStack(container.NewCenter(t)))
+}
+
+// tapHeaderCell 是榜单表头里可以点击的格子：文字用主题强调色，
+// 当前排序列高亮显示。实现 fyne.Tappable 即可接收点击。
+type tapHeaderCell struct {
+	widget.BaseWidget
+	t     *canvas.Text
+	w     float32
+	onTap func()
+}
+
+func newTapHeaderCell(text string, w float32, active bool, onTap func()) *tapHeaderCell {
+	col := theme.Color(theme.ColorNameDisabled)
+	if active {
+		col = theme.Color(theme.ColorNamePrimary)
+	}
+	t := canvas.NewText(text, col)
+	t.TextSize = 13
+	t.TextStyle = fyne.TextStyle{Bold: true}
+	c := &tapHeaderCell{t: t, w: w, onTap: onTap}
+	c.ExtendBaseWidget(c)
+	return c
+}
+
+func (c *tapHeaderCell) Tapped(*fyne.PointEvent) {
+	if c.onTap != nil {
+		c.onTap()
+	}
+}
+
+func (c *tapHeaderCell) CreateRenderer() fyne.WidgetRenderer {
+	return &tapHeaderCellRenderer{c: c}
+}
+
+type tapHeaderCellRenderer struct{ c *tapHeaderCell }
+
+func (r *tapHeaderCellRenderer) Layout(size fyne.Size) {
+	// 横向撑满格子让 TextAlignCenter 生效，纵向居中。
+	h := r.c.t.MinSize().Height
+	r.c.t.Resize(fyne.NewSize(size.Width, h))
+	r.c.t.Move(fyne.NewPos(0, (size.Height-h)/2))
+}
+
+func (r *tapHeaderCellRenderer) MinSize() fyne.Size { return fyne.NewSize(r.c.w, 26) }
+
+func (r *tapHeaderCellRenderer) Objects() []fyne.CanvasObject { return []fyne.CanvasObject{r.c.t} }
+
+func (r *tapHeaderCellRenderer) Refresh() { canvas.Refresh(r.c.t) }
+
+func (r *tapHeaderCellRenderer) Destroy() {}
 
 // problemDetail 展示一道题的子任务与测试点状态矩阵。
 func (p *contestPage) problemDetail(prob contestProblem, rows []rankRow) fyne.CanvasObject {

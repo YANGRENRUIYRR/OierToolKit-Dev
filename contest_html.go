@@ -57,6 +57,10 @@ func renderContestHTML(c contest, res contestResult, rows []rankRow, full float6
 	fmt.Fprintf(&b, "<p class=\"meta\">"+tr("共 %d 位选手 · %d 道题 · 满分 %.0f 分 · 评测于 %s")+"</p>\n",
 		len(rows), len(res.Problems), full, html.EscapeString(res.JudgedAt))
 
+	// 图表：通过率条形图 + 总分分布直方图。纯内嵌 CSS，无外链、可打印。
+	b.WriteString(htmlPassRateChart(passRates(c, res)))
+	b.WriteString(htmlScoreDistChart(rows, full))
+
 	// 榜单表格：名次 / 选手 / 每题 / 总分。
 	b.WriteString("<table class=\"board\">\n<thead><tr>")
 	b.WriteString(tr("<th class=\"rank\">#</th><th class=\"name\">选手</th>"))
@@ -163,6 +167,98 @@ func renderContestHTML(c contest, res contestResult, rows []rankRow, full float6
 	return b.String()
 }
 
+// htmlPassRateChart 生成通过率条形图：每道题一行，横条按满分率填充。
+// 没有选手时不输出整个区块。
+func htmlPassRateChart(rates []passRate) string {
+	total := 0
+	for _, pr := range rates {
+		total += pr.Players
+	}
+	if total == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString(tr("<h2>通过率</h2>\n"))
+	b.WriteString("<div class=\"chart\">\n")
+	for _, pr := range rates {
+		pct := pr.Rate() * 100
+		fmt.Fprintf(&b,
+			"<div class=\"crow\"><span class=\"clabel\">%s</span>"+
+				"<span class=\"cbar\"><span class=\"cfill\" style=\"width:%.1f%%\"></span></span>"+
+				"<span class=\"cval\">%d / %d · %.0f%%</span></div>\n",
+			html.EscapeString(pr.Problem), pct, pr.Solved, pr.Players, pct)
+	}
+	b.WriteString("</div>\n")
+	return b.String()
+}
+
+// htmlScoreDistChart 生成总分分布直方图：按满分百分比分十档，
+// 桶高与人数成正比。纯 CSS 柱条，无外链。
+func htmlScoreDistChart(rows []rankRow, full float64) string {
+	if full <= 0 || len(rows) == 0 {
+		return ""
+	}
+	const bucketsN = 10
+	buckets := make([]int, bucketsN)
+	for _, r := range rows {
+		i := int(r.Total / full * bucketsN)
+		if i >= bucketsN {
+			i = bucketsN - 1
+		}
+		if i < 0 {
+			i = 0
+		}
+		buckets[i]++
+	}
+	maxN := 0
+	for _, n := range buckets {
+		if n > maxN {
+			maxN = n
+		}
+	}
+	if maxN == 0 {
+		return ""
+	}
+
+	var b strings.Builder
+	b.WriteString(tr("<h2>分数分布</h2>\n"))
+	b.WriteString("<div class=\"hist\">\n")
+	for i, n := range buckets {
+		// 没人落进去的档也画出来（高度为 0），横轴才是连续的；
+		// 有人的档至少 4% 高，人数太少的档不至于看不见。
+		h := float64(n) / float64(maxN) * 100
+		if n > 0 && h < 4 {
+			h = 4
+		}
+		fillCls := bucketClass(i, bucketsN)
+		if n == 0 {
+			fillCls += " empty"
+		}
+		fmt.Fprintf(&b,
+			"<div class=\"hbar\"><span class=\"hnum\">%d</span>"+
+				"<div class=\"hfill%s\" style=\"height:%.0f%%\"></div></div>\n",
+			n, fillCls, h)
+	}
+	b.WriteString("</div>\n<div class=\"hlab\">")
+	for i := 0; i < bucketsN; i++ {
+		fmt.Fprintf(&b, "<span>%d%%–%d%%</span>", i*100/bucketsN, (i+1)*100/bucketsN)
+	}
+	b.WriteString("</div>\n")
+	return b.String()
+}
+
+// bucketClass 给直方图分档上色：越接近满分越绿，低分段越红。
+func bucketClass(i, n int) string {
+	switch {
+	case i >= n-2:
+		return " hi"
+	case i <= 1:
+		return " lo"
+	default:
+		return ""
+	}
+}
+
 // firstLine 提取编译错误摘要：优先第一条含 error: 的行，
 // 没有就退回第一条非空内容。
 func firstLine(s string) string {
@@ -264,6 +360,21 @@ td.vc-ce{color:#8250df;font-weight:600}
 td.vc-tle,td.vc-mle,td.vc-re{color:var(--zero);font-weight:600}
 td.vc-missing{color:var(--muted)}
 td.vc-none{color:#d0d7de}
+.chart{margin:10px 0 4px}
+.crow{display:flex;align-items:center;gap:10px;margin:6px 0}
+.clabel{width:64px;font-weight:600;font-variant-numeric:tabular-nums;text-align:center}
+.cbar{flex:1;height:14px;background:var(--panel);border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.cfill{display:block;height:100%;background:var(--accent)}
+.cval{color:var(--muted);font-size:13px;width:120px;text-align:right;font-variant-numeric:tabular-nums}
+.hist{display:flex;align-items:flex-end;gap:6px;height:150px;margin:12px 0 4px}
+.hbar{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px}
+.hfill{width:100%;background:var(--accent);border-radius:3px 3px 0 0;min-height:2px}
+.hfill.hi{background:var(--full)}
+.hfill.lo{background:var(--zero)}
+.hfill.empty{min-height:0;background:transparent}
+.hnum{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.hlab{display:flex;gap:6px;margin:0 0 8px}
+.hlab span{flex:1;text-align:center;font-size:12px;color:var(--muted)}
 @media print{
  body{font-size:12px}
  .wrap{max-width:none;padding:0}
