@@ -202,7 +202,26 @@ var enUI = map[string]string{
 	"选手": "Player", "测试点": "Test case", "子任务": "Subtask",
 	"分值": "Points", "判定": "Verdict", "总分": "Total", "名次": "Rank", "满分题数": "Solved",
 	"通过率": "Pass rate", "题目明细": "Problem details",
-	"<h2>通过率</h2>\n":  "<h2>Pass rate</h2>\n",
+	"<h2>通过率</h2>\n": "<h2>Pass rate</h2>\n",
+
+	// 榜单筛选与测试点明细
+	"输入选手名筛选…":                "Filter by player…",
+	"筛出 %d 位选手":               "%d players matched",
+	"评测明细":                    "Judging details",
+	"该选手此题没有评测记录。":            "No judging record for this player and problem.",
+	"得分 %s / %s":              "Score %s / %s",
+	"编译失败：":                   "Compile failed:",
+	"通过":                      "Passed",
+	"子任务 %s · %s / %s 分 · %s": "Subtask %s · %s / %s pts · %s",
+	"（没有测试点记录）":               "(no test case records)",
+
+	// 比赛列表筛选
+	"按比赛名筛选…":         "Filter by contest name…",
+	"筛选":              "Filter",
+	"导入时间（新→旧）":       "Imported (newest first)",
+	"导入时间（旧→新）":       "Imported (oldest first)",
+	"名称（A→Z）":         "Name (A→Z)",
+	"名称（Z→A）":         "Name (Z→A)",
 	"<h2>分数分布</h2>\n": "<h2>Score distribution</h2>\n",
 	"尚未评测":            "Not judged", "尚未提交": "Not submitted", "已评测": "Judged",
 	"表示已评测过": "already judged",

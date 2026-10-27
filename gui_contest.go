@@ -63,6 +63,8 @@ type contestPage struct {
 	// 点击表头切换，再点同一列反转方向。
 	rankSortCol  int
 	rankSortDesc bool
+	// rankFilter 是榜单的选手名筛选串（小写），空 = 不过滤。
+	rankFilter string
 
 	running atomic.Bool
 	cancel  atomic.Bool
@@ -733,6 +735,10 @@ func (p *contestPage) rankingTable(rows []rankRow, full float64) fyne.CanvasObje
 
 	_ = full
 	box := container.NewVBox()
+	// 选手名筛选框放在表格上方；只重建表格部分，输入框本身不动，
+	// 否则每敲一个字焦点就丢。
+	search := widget.NewEntry()
+	search.SetPlaceHolder(tr("输入选手名筛选…"))
 	// 先声明再赋值：:= 的作用域从语句之后才开始，闭包里引用不到。
 	var rebuild func()
 	rebuild = func() {
@@ -764,9 +770,18 @@ func (p *contestPage) rankingTable(rows []rankRow, full float64) fyne.CanvasObje
 		}
 		objs := []fyne.CanvasObject{container.NewHBox(head...), widget.NewSeparator()}
 
-		// 视图行：默认顺序用 buildRanking 的结果；点了表头才重排。
-		// Rank 保留原值——它是按总分算出来的名次，重排视图不该改。
-		view := append([]rankRow(nil), rows...)
+		// 视图行：先按选手名筛选，再按当前排序列重排。
+		// Rank 保留原值——它是按总分算出来的名次，筛选和重排都不改。
+		view := make([]rankRow, 0, len(rows))
+		for _, r := range rows {
+			if p.rankFilter == "" || strings.Contains(strings.ToLower(r.Player), p.rankFilter) {
+				view = append(view, r)
+			}
+		}
+		if p.rankFilter != "" {
+			objs = append(objs, container.NewPadded(
+				caption(fmt.Sprintf(tr("筛出 %d 位选手"), len(view)))))
+		}
 		if p.rankSortCol >= 2 {
 			col, desc := p.rankSortCol, p.rankSortDesc
 			sort.SliceStable(view, func(a, b int) bool {
@@ -787,22 +802,47 @@ func (p *contestPage) rankingTable(rows []rankRow, full float64) fyne.CanvasObje
 				return view[a].Player < view[b].Player
 			})
 		}
+		dark := fyne.CurrentApp().Settings().ThemeVariant() == theme.VariantDark
 		for _, row := range view {
-			cells := []string{fmt.Sprintf("%d", row.Rank), row.Player}
-			colors := []interface{}{toneNone, toneNone}
-			for i, s := range row.Scores {
-				cells = append(cells, fmtScore(s))
-				colors = append(colors, scoreToneOf(c, p.res.Problems[i], s))
+			// 名次和选手名两格不可点；题目分数格可点，弹测试点明细。
+			player := row.Player
+			cells := []fyne.CanvasObject{
+				plainCell(fmt.Sprintf("%d", row.Rank), widths[0], nil, false),
+				plainCell(row.Player, widths[1], nil, true),
 			}
-			cells = append(cells, fmtScore(row.Total))
-			colors = append(colors, toneNone)
-			objs = append(objs, cellRowWithColors(cells, colors, widths, false))
+			for i, s := range row.Scores {
+				prob := p.res.Problems[i]
+				col := scoreToneColor(scoreToneOf(c, prob, s), dark)
+				cells = append(cells, newTapCell(fmtScore(s), widths[i+2], col, func() {
+					p.showPointDetail(player, prob)
+				}))
+			}
+			cells = append(cells, plainCell(fmtScore(row.Total), widths[len(widths)-1], nil, false))
+			objs = append(objs, container.NewHBox(cells...))
 		}
 		box.Objects = objs
 		box.Refresh()
 	}
+	search.OnChanged = func(s string) {
+		p.rankFilter = strings.ToLower(strings.TrimSpace(s))
+		rebuild()
+	}
 	rebuild()
-	return box
+	return container.NewVBox(search, box)
+}
+
+// plainCell 是榜单数据行里不可点击的格子，样式与 cellRowWithColors 一致。
+func plainCell(text string, w float32, col color.Color, leading bool) fyne.CanvasObject {
+	if col == nil {
+		col = theme.Color(theme.ColorNameForeground)
+	}
+	t := canvas.NewText(text, col)
+	t.TextSize = 13
+	t.Alignment = fyne.TextAlignCenter
+	if leading {
+		t.Alignment = fyne.TextAlignLeading
+	}
+	return container.NewGridWrap(fyne.NewSize(w, 26), container.NewStack(container.NewCenter(t)))
 }
 
 // plainHeaderCell 是不可点击的表头格子，样式与 cellRow(header) 一致。
@@ -861,6 +901,112 @@ func (r *tapHeaderCellRenderer) Objects() []fyne.CanvasObject { return []fyne.Ca
 func (r *tapHeaderCellRenderer) Refresh() { canvas.Refresh(r.c.t) }
 
 func (r *tapHeaderCellRenderer) Destroy() {}
+
+// tapCell 是榜单数据行里可以点击的分数格：点开该选手该题的测试点明细。
+// 外观与普通单元格一致，只有点击行为不同。
+type tapCell struct {
+	widget.BaseWidget
+	t     *canvas.Text
+	w     float32
+	onTap func()
+}
+
+func newTapCell(text string, w float32, col color.Color, onTap func()) *tapCell {
+	t := canvas.NewText(text, col)
+	t.TextSize = 13
+	t.Alignment = fyne.TextAlignCenter
+	c := &tapCell{t: t, w: w, onTap: onTap}
+	c.ExtendBaseWidget(c)
+	return c
+}
+
+func (c *tapCell) Tapped(*fyne.PointEvent) {
+	if c.onTap != nil {
+		c.onTap()
+	}
+}
+
+func (c *tapCell) CreateRenderer() fyne.WidgetRenderer {
+	return &tapCellRenderer{c: c}
+}
+
+type tapCellRenderer struct{ c *tapCell }
+
+func (r *tapCellRenderer) Layout(size fyne.Size) {
+	h := r.c.t.MinSize().Height
+	r.c.t.Resize(fyne.NewSize(size.Width, h))
+	r.c.t.Move(fyne.NewPos(0, (size.Height-h)/2))
+}
+
+func (r *tapCellRenderer) MinSize() fyne.Size { return fyne.NewSize(r.c.w, 26) }
+
+func (r *tapCellRenderer) Objects() []fyne.CanvasObject { return []fyne.CanvasObject{r.c.t} }
+
+func (r *tapCellRenderer) Refresh() { canvas.Refresh(r.c.t) }
+
+func (r *tapCellRenderer) Destroy() {}
+
+// showPointDetail 弹出某位选手某道题的评测明细：编译日志（编译失败时）、
+// 子任务矩阵或逐测试点的判定/耗时/内存。
+func (p *contestPage) showPointDetail(player, problem string) {
+	pr, ok := p.res.resultOf(player, problem)
+	if !ok {
+		dialog.NewInformation(tr("评测明细"),
+			tr("该选手此题没有评测记录。"), p.g.win).Show()
+		return
+	}
+	full := fullScoreOf(p.c, problem)
+
+	items := []fyne.CanvasObject{container.NewPadded(widget.NewLabelWithStyle(
+		fmt.Sprintf(tr("得分 %s / %s"), fmtScore(pr.Score), fmtScore(full)),
+		fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))}
+
+	if !pr.CompileOK {
+		items = append(items,
+			container.NewPadded(caption(tr("编译失败："))),
+			widget.NewLabelWithStyle(strings.TrimSpace(pr.CompileLog),
+				fyne.TextAlignLeading, fyne.TextStyle{Monospace: true}))
+	} else if len(pr.Subtasks) > 0 {
+		// 子任务模式：每个子任务一行小结，下面缩进列它的测试点。
+		for _, st := range pr.Subtasks {
+			state := tr("未通过")
+			if st.Passed {
+				state = tr("通过")
+			}
+			items = append(items, widget.NewLabelWithStyle(
+				fmt.Sprintf(tr("子任务 %s · %s / %s 分 · %s"),
+					st.Name, fmtScore(st.Awarded), fmtScore(st.Score), state),
+				fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
+			items = append(items, pointRows(st.Tests, "  ")...)
+		}
+	} else {
+		items = append(items, pointRows(pr.Tests, "")...)
+	}
+
+	scroll := container.NewVScroll(container.NewVBox(items...))
+	scroll.SetMinSize(fyne.NewSize(520, 380))
+	d := dialog.NewCustom(tr("评测明细"), tr("关闭"), scroll, p.g.win)
+	d.Resize(fyne.NewSize(560, 430))
+	d.Show()
+}
+
+// pointRows 把一组测试点画成紧凑的文本行，前缀用于子任务缩进。
+func pointRows(tests []testOutcome, indent string) []fyne.CanvasObject {
+	if len(tests) == 0 {
+		return []fyne.CanvasObject{caption(indent + tr("（没有测试点记录）"))}
+	}
+	rows := make([]fyne.CanvasObject, 0, len(tests))
+	for _, t := range tests {
+		line := fmt.Sprintf("%s%s · %s · %dms · %.1fMB",
+			indent, tr("测试点")+" "+t.ID, t.Verdict, t.TimeMS, t.MemMB)
+		rows = append(rows, widget.NewLabelWithStyle(line,
+			fyne.TextAlignLeading, fyne.TextStyle{Monospace: true}))
+		if t.Message != "" {
+			rows = append(rows, caption(indent+"  "+shorten(t.Message, 120)))
+		}
+	}
+	return rows
+}
 
 // problemDetail 展示一道题的子任务与测试点状态矩阵。
 func (p *contestPage) problemDetail(prob contestProblem, rows []rankRow) fyne.CanvasObject {

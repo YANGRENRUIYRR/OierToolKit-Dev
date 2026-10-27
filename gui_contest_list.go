@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -58,11 +59,79 @@ func (g *guiApp) buildContestList() fyne.CanvasObject {
 		return container.NewBorder(head, nil, nil, nil, empty)
 	}
 
-	table, actions := g.contestTable(list)
-	foot := container.NewPadded(container.NewBorder(nil, nil,
-		caption(fmt.Sprintf(tr("共 %d 场比赛 · 数据存放在 %s"), len(list), contestsDir())),
-		actions, nil))
-	return container.NewBorder(head, foot, nil, nil, table)
+	// 筛选行 + 表格 + 底部计数：搜索或换排序时整块重建。
+	// 选中状态随表格一起销毁，重建后取消选中是预期行为。
+	var center, footBar *fyne.Container
+	var search *widget.Entry
+	var sortSel *widget.Select
+	rebuild := func() {
+		filtered := filterSortContests(list, search.Text, sortSel.SelectedIndex())
+		table, actions := g.contestTable(filtered)
+		center.Objects = []fyne.CanvasObject{table}
+		center.Refresh()
+		footBar.Objects = []fyne.CanvasObject{container.NewPadded(container.NewBorder(nil, nil,
+			caption(fmt.Sprintf(tr("共 %d 场比赛 · 数据存放在 %s"), len(filtered), contestsDir())),
+			actions, nil))}
+		footBar.Refresh()
+	}
+	center = container.NewStack()
+	footBar = container.NewStack()
+	bar, s, sel := contestFilterBar(rebuild)
+	search, sortSel = s, sel
+
+	rebuild()
+	head.Add(bar)
+	return container.NewBorder(head, footBar, nil, nil, center)
+}
+
+// contestFilterBar 生成比赛列表的筛选行：名称搜索框 + 排序下拉。
+// 选择变化通过 onReload 通知调用方重建列表。
+func contestFilterBar(onReload func()) (fyne.CanvasObject, *widget.Entry, *widget.Select) {
+	search := widget.NewEntry()
+	search.SetPlaceHolder(tr("按比赛名筛选…"))
+	sortSel := widget.NewSelect([]string{
+		tr("导入时间（新→旧）"),
+		tr("导入时间（旧→新）"),
+		tr("名称（A→Z）"),
+		tr("名称（Z→A）"),
+	}, nil)
+	sortSel.SetSelected(tr("导入时间（新→旧）"))
+	sortSel.OnChanged = func(string) { onReload() }
+	// 搜索框占中间撑满，排序下拉固定在右侧（宽度要给够，否则
+	// 「导入时间（新→旧）」会被截成「导入时间（…」）。
+	bar := container.NewBorder(nil, nil, caption(tr("筛选")),
+		container.NewGridWrap(fyne.NewSize(190, 36), sortSel), search)
+	return container.NewPadded(bar), search, sortSel
+}
+
+// filterSortContests 按名称子串（不区分大小写）过滤，再按指定方式排序。
+// mode: 0=导入时间新→旧, 1=旧→新, 2=名称 A→Z, 3=名称 Z→A。
+func filterSortContests(list []contest, query string, mode int) []contest {
+	q := strings.ToLower(strings.TrimSpace(query))
+	out := make([]contest, 0, len(list))
+	for _, c := range list {
+		if q == "" || strings.Contains(strings.ToLower(c.Cfg.Name), q) {
+			out = append(out, c)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		switch mode {
+		case 1:
+			if out[i].Cfg.ImportedAt != out[j].Cfg.ImportedAt {
+				return out[i].Cfg.ImportedAt < out[j].Cfg.ImportedAt
+			}
+		case 2:
+			return out[i].Cfg.Name < out[j].Cfg.Name
+		case 3:
+			return out[i].Cfg.Name > out[j].Cfg.Name
+		default:
+			if out[i].Cfg.ImportedAt != out[j].Cfg.ImportedAt {
+				return out[i].Cfg.ImportedAt > out[j].Cfg.ImportedAt
+			}
+		}
+		return out[i].Cfg.Name < out[j].Cfg.Name
+	})
+	return out
 }
 
 // contestTable 用表格展示所有比赛：选中一行后，底部按钮条提供打开、
