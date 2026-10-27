@@ -106,7 +106,7 @@ otk j                         # 编译并评测
 | `otk wizard` | 新手向导，跟着引导走一遍工作流 |
 | `otk completion bash\|zsh\|powershell` | 输出 shell 补全脚本（source 进配置文件即可） |
 | `otk gui` | 打开图形界面（项目库、样例、评测、对拍、提交一站搞定）；安装脚本还会生成 `otk-gui` 入口，双击即进 GUI |
-| `otk contest add/judge/rank/rm` | 模拟赛：导入比赛、并发评测、查看与导出榜单 |
+| `otk contest add/export/judge/rank/rm` | 模拟赛：导入比赛（目录或 zip）、打包搬家、并发评测、查看与导出榜单 |
 
 ## 🏆 模拟赛
 
@@ -135,8 +135,12 @@ otk contest add ~/Downloads/某次模拟赛     # 导入（目录名即比赛名
 otk contest judge                          # 并发编译 + 评测（默认 NumCPU-1，上限 8）
 otk contest rank                           # 终端里看榜单
 otk contest rank -w rank.html              # 导出完整榜单页（含每题明细矩阵）
+otk contest export 某次模拟赛 out.zip      # 打包成 zip 数据包（不带评测结果）
+otk contest add out.zip                    # 在另一台机器上原样导入
 otk contest rm <id>                        # 删除比赛
 ```
+
+**数据包**：`export` 打出的 zip 里是 `contest.json` + `data/` + `source/`，所以时限、子任务、题面、选手与提交清单都跟着走，换台机器导入不用再配一遍。`result.json` 和 `.build/` 不进包——评测结果跟本机编译器绑定，导入后重新评测才有意义。没有 `contest.json` 的普通上传目录 zip 也认，会当成目录导入重新扫描。
 
 **subtask** 在比赛目录的 `contest.json` 里配置，也可以在 GUI 的「题目配置」页直接改（改完自动写回）：
 

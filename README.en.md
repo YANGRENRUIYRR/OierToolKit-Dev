@@ -98,7 +98,7 @@ Main commands at a glance (`otk help` for the full list):
 | `otk stress (ss) [N]` | Stress-test for N rounds (default 100) |
 | `otk wizard` | Guided tour for first-time users |
 | `otk gui` | Open the graphical interface (projects, samples, judging, stress testing, submit in one place); installers also create an `otk-gui` entry |
-| `otk contest add/judge/rank/rm` | Mock contests: import, parallel judging, leaderboard and HTML export |
+| `otk contest add/export/judge/rank/rm` | Mock contests: import (folder or zip), pack and move, parallel judging, leaderboard and HTML export |
 
 ## 🏆 Mock Contests
 
@@ -127,8 +127,12 @@ otk contest add ~/Downloads/some-contest   # import (folder name becomes contest
 otk contest judge                          # parallel compile + judge (NumCPU-1, capped at 8)
 otk contest rank                           # leaderboard in the terminal
 otk contest rank -w rank.html              # export a full leaderboard page with per-problem matrix
+otk contest export some-contest out.zip    # pack into a zip archive (results excluded)
+otk contest add out.zip                    # import it unchanged on another machine
 otk contest rm <id>                        # delete a contest
 ```
+
+**Archives**: an exported zip holds `contest.json` + `data/` + `source/`, so time limits, subtasks, statements, contestants and the submission list all travel with it — no reconfiguration on the other machine. `result.json` and `.build/` are excluded: results are tied to the local compiler, so judging again is the only meaningful thing. Plain upload-folder zips without `contest.json` work too and are scanned like a folder.
 
 **Subtasks** are configured in `contest.json` inside the contest folder, or edited directly in the GUI's "Problems" tab (changes are written back automatically):
 

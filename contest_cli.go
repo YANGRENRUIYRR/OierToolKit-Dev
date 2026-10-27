@@ -21,17 +21,19 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 )
 
 // cmdContest 是模拟赛的总入口：
 //
-//	otk contest add <上传目录> [名称]    导入一场比赛
-//	otk contest ls                      列出全部比赛
-//	otk contest judge <名称>            评测并生成 result.json
-//	otk contest rank [-w <文件>] <名称> 打印榜单（-w 导出 HTML）
-//	otk contest rm <名称>               删除比赛
+//	otk contest add <上传目录|数据包.zip> [名称]  导入一场比赛
+//	otk contest export <名称> [zip 路径]        打包成数据包
+//	otk contest ls                              列出全部比赛
+//	otk contest judge <名称>                    评测并生成 result.json
+//	otk contest rank [-w <文件>] <名称>         打印榜单（-w 导出 HTML）
+//	otk contest rm <名称>                       删除比赛
 func cmdContest(args []string) {
 	if len(args) == 0 {
 		printContestHelp()
@@ -41,6 +43,8 @@ func cmdContest(args []string) {
 	switch args[0] {
 	case "add", "import":
 		cmdContestAdd(args[1:])
+	case "export", "pack":
+		cmdContestExport(args[1:])
 	case "ls", "list":
 		cmdContestList()
 	case "judge", "j":
@@ -61,6 +65,8 @@ func printContestHelp() {
 	fmt.Print(`用法: otk contest <子命令> [参数]
 
   add <上传目录> [名称]   导入一整场模拟赛（data/ + source/）
+  add <数据包.zip> [名称] 从 zip 数据包导入（保留时限、子任务、题面）
+  export <名称> [zip]     打包成 zip 数据包，默认写到比赛目录下
   ls                      列出已导入的比赛
   judge [名称]            评测整场比赛，结果写入比赛目录的 result.json
   rank [名称] [-w 文件]   查看榜单；-w 导出 HTML（默认比赛目录下）
@@ -73,6 +79,11 @@ func printContestHelp() {
 `)
 }
 
+// isContestArchive 判断路径是不是 zip 数据包。
+func isContestArchive(p string) bool {
+	return strings.EqualFold(filepath.Ext(p), ".zip")
+}
+
 // cmdContestAdd 导入比赛。
 func cmdContestAdd(args []string) {
 	if len(args) == 0 || len(args) > 2 {
@@ -83,7 +94,15 @@ func cmdContestAdd(args []string) {
 		name = args[1]
 	}
 	fmt.Printf(tr("正在导入 %s ...")+"\n", args[0])
-	c, err := importContest(args[0], name)
+	var (
+		c   contest
+		err error
+	)
+	if isContestArchive(args[0]) {
+		c, err = importContestArchive(args[0], name)
+	} else {
+		c, err = importContest(args[0], name)
+	}
 	if err != nil {
 		fatal("%v", err)
 	}
@@ -97,6 +116,32 @@ func cmdContestAdd(args []string) {
 	for _, w := range validateContest(c) {
 		fmt.Printf("%s! %s%s\n", yellow, w, reset)
 	}
+}
+
+// cmdContestExport 把一场比赛打包成 zip 数据包。
+func cmdContestExport(args []string) {
+	if len(args) == 0 || len(args) > 2 {
+		fatal(tr("用法: otk contest export <名称> [zip 路径]"))
+	}
+	c, err := resolveContest(args[0])
+	if err != nil {
+		fatal("%v", err)
+	}
+	out := ""
+	if len(args) == 2 {
+		out = args[1]
+	}
+	fmt.Printf(tr("正在打包 %s ...")+"\n", c.Cfg.Name)
+	path, err := exportContestArchive(c, out)
+	if err != nil {
+		fatal(tr("导出失败: %v"), err)
+	}
+	size := int64(0)
+	if info, err := os.Stat(path); err == nil {
+		size = info.Size()
+	}
+	fmt.Printf("%s"+tr("已导出数据包 %s")+"%s（%s）\n", green, path, reset, humanSize(int(size)))
+	fmt.Printf(tr("对方用 otk contest add %s 或在界面里「导入 ZIP」即可打开。")+"\n", filepath.Base(path))
 }
 
 // cmdContestList 列出比赛。

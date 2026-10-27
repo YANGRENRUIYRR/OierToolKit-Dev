@@ -27,6 +27,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -35,16 +36,15 @@ import (
 func (g *guiApp) buildContestList() fyne.CanvasObject {
 	list := contestEntries()
 
-	importBtn := widget.NewButtonWithIcon(tr("导入模拟赛"), theme.ContentAddIcon(), g.importContestDialog)
-	importBtn.Importance = widget.HighImportance
-
 	head := container.NewVBox(
 		container.NewPadded(container.NewBorder(nil, nil,
 			container.NewVBox(
 				widget.NewLabelWithStyle(tr("模拟赛"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 				caption(tr("整场比赛一起导入、一起评测，自动出榜单，可导出 HTML。")),
 			),
-			importBtn,
+			// 用 Center 包一层：Border 的右槽会把按钮拉到整块高度，
+			// 两个按钮并排时会显得又高又胖。
+			container.NewCenter(g.importButtons()),
 			nil,
 		)),
 		widget.NewSeparator(),
@@ -54,7 +54,10 @@ func (g *guiApp) buildContestList() fyne.CanvasObject {
 		empty := container.NewCenter(container.NewVBox(
 			widget.NewLabelWithStyle(tr("还没有导入任何模拟赛"), fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
 			caption(tr("上传目录结构：")+"\n  <目录>/data/<题目名>/<测试点>.in\n  <目录>/data/<题目名>/<测试点>.ans（或 .out）\n  <目录>/source/<选手名>/<题目名>.cpp"),
-			container.NewCenter(importBtn),
+			caption(tr("也可以直接导入 .zip 数据包，连时限与题面一起还原。")),
+			// 必须另建一套按钮：Fyne 里同一个控件不能挂在两处，否则
+			// 标题栏和这里会抢着布局，按钮直接被挤到窗口外面。
+			container.NewCenter(g.importButtons()),
 		))
 		return container.NewBorder(head, nil, nil, nil, empty)
 	}
@@ -82,6 +85,15 @@ func (g *guiApp) buildContestList() fyne.CanvasObject {
 	rebuild()
 	head.Add(bar)
 	return container.NewBorder(head, footBar, nil, nil, center)
+}
+
+// importButtons 新建一套"导入"按钮（目录导入 + zip 导入）。
+// 每次调用都新建：同一个控件不能同时挂在标题栏和空状态里。
+func (g *guiApp) importButtons() *fyne.Container {
+	importBtn := widget.NewButtonWithIcon(tr("导入模拟赛"), theme.ContentAddIcon(), g.importContestDialog)
+	importBtn.Importance = widget.HighImportance
+	zipInBtn := widget.NewButtonWithIcon(tr("导入 ZIP"), theme.DownloadIcon(), g.importContestZipDialog)
+	return container.NewHBox(zipInBtn, importBtn)
 }
 
 // contestFilterBar 生成比赛列表的筛选行：名称搜索框 + 排序下拉。
@@ -209,19 +221,22 @@ func (g *guiApp) contestTable(list []contest) (fyne.CanvasObject, fyne.CanvasObj
 	openBtn := widget.NewButtonWithIcon(tr("打开"), theme.NavigateNextIcon(), nil)
 	openBtn.Importance = widget.HighImportance
 	dirBtn := widget.NewButtonWithIcon(tr("打开目录"), theme.FolderOpenIcon(), nil)
+	zipBtn := widget.NewButtonWithIcon(tr("导出 ZIP"), theme.DownloadIcon(), nil)
 	delBtn := deleteIconButton(tr("删除这场模拟赛"), nil)
-	actions := container.NewHBox(openBtn, dirBtn, delBtn)
+	actions := container.NewHBox(openBtn, dirBtn, zipBtn, delBtn)
 
 	var selected int = -1
 	refreshActions := func() {
 		if selected < 0 || selected >= len(rows) {
 			openBtn.Disable()
 			dirBtn.Disable()
+			zipBtn.Disable()
 			delBtn.Disable()
 			return
 		}
 		openBtn.Enable()
 		dirBtn.Enable()
+		zipBtn.Enable()
 		delBtn.Enable()
 	}
 	refreshActions()
@@ -229,6 +244,11 @@ func (g *guiApp) contestTable(list []contest) (fyne.CanvasObject, fyne.CanvasObj
 	openBtn.OnTapped = func() {
 		if selected >= 0 && selected < len(rows) {
 			g.showContest(rows[selected].c)
+		}
+	}
+	zipBtn.OnTapped = func() {
+		if selected >= 0 && selected < len(rows) {
+			g.exportContestZip(rows[selected].c)
 		}
 	}
 	dirBtn.OnTapped = func() {
@@ -325,20 +345,108 @@ func (g *guiApp) importContestDialog() {
 			g.showError(fmt.Errorf("%s", tr("请选择上传目录")))
 			return
 		}
-		g.busy(true, tr("正在导入模拟赛 ..."))
-		go func() {
-			c, err := importContest(dir, name)
-			ui(func() {
-				if err != nil {
-					g.busy(false, tr("导入失败"))
-					g.showError(err)
-					return
-				}
-				g.busy(false, tr("模拟赛已导入"))
-				g.showContest(c)
-				g.setStatus(fmt.Sprintf(tr("已导入 %s：%d 题 · %d 位选手 · %d 份提交"),
-					c.Cfg.Name, len(c.Cfg.Problems), len(c.Cfg.Players), len(c.Cfg.Sources)))
-			})
-		}()
+		g.runImport(tr("正在导入模拟赛 ..."), func() (contest, error) {
+			return importContest(dir, name)
+		})
 	}, g.win)
+}
+
+// importContestZipDialog 选择 .zip 数据包导入一整场比赛。
+func (g *guiApp) importContestZipDialog() {
+	pathEntry := widget.NewEntry()
+	pathEntry.SetPlaceHolder(tr("数据包（.zip）路径"))
+	nameEntry := widget.NewEntry()
+	nameEntry.SetPlaceHolder(tr("比赛名称（默认用包里的名字）"))
+
+	browse := widget.NewButtonWithIcon("", theme.FolderOpenIcon(), func() {
+		picker := dialog.NewFileOpen(func(uc fyne.URIReadCloser, err error) {
+			if err != nil || uc == nil {
+				return
+			}
+			pathEntry.SetText(uc.URI().Path())
+			_ = uc.Close()
+		}, g.win)
+		picker.SetFilter(storage.NewExtensionFileFilter([]string{".zip"}))
+		picker.Show()
+	})
+	pathRow := container.NewBorder(nil, nil, nil, browse, pathEntry)
+
+	content := container.NewVBox(
+		widget.NewForm(
+			widget.NewFormItem(tr("数据包"), pathRow),
+			widget.NewFormItem(tr("比赛名称"), nameEntry),
+		),
+		caption(tr("数据包里带 contest.json 时，时限、子任务、题面与提交清单都会一起还原。")),
+		caption(tr("评测结果不会打包，导入后需要重新评测。")),
+	)
+
+	dialog.ShowCustomConfirm(tr("导入 ZIP 数据包"), tr("导入"), tr("取消"), content, func(ok bool) {
+		if !ok {
+			return
+		}
+		zipPath := strings.TrimSpace(pathEntry.Text)
+		name := strings.TrimSpace(nameEntry.Text)
+		if zipPath == "" {
+			g.showError(fmt.Errorf("%s", tr("请选择数据包")))
+			return
+		}
+		g.runImport(tr("正在解压数据包 ..."), func() (contest, error) {
+			return importContestArchive(zipPath, name)
+		})
+	}, g.win)
+}
+
+// exportContestZip 弹出保存框，把整场比赛打包成 zip 数据包。
+func (g *guiApp) exportContestZip(c contest) {
+	def := sanitizeFileName(c.Cfg.Name) + ".zip"
+	save := dialog.NewFileSave(func(w fyne.URIWriteCloser, err error) {
+		if err != nil || w == nil {
+			return
+		}
+		out := w.URI().Path()
+		// 先关掉对话框建的空文件，压缩包由 exportContestArchive 自己写。
+		_ = w.Close()
+		g.runExport(tr("正在打包模拟赛 ..."), func() (string, error) {
+			return exportContestArchive(c, out)
+		})
+	}, g.win)
+	save.SetFileName(def)
+	save.SetFilter(storage.NewExtensionFileFilter([]string{".zip"}))
+	save.Show()
+}
+
+// runImport 在后台执行导入，统一处理忙碌提示、报错与成功后的跳转。
+func (g *guiApp) runImport(busyMsg string, fn func() (contest, error)) {
+	g.busy(true, busyMsg)
+	go func() {
+		c, err := fn()
+		ui(func() {
+			if err != nil {
+				g.busy(false, tr("导入失败"))
+				g.showError(err)
+				return
+			}
+			g.busy(false, tr("模拟赛已导入"))
+			g.showContest(c)
+			g.setStatus(fmt.Sprintf(tr("已导入 %s：%d 题 · %d 位选手 · %d 份提交"),
+				c.Cfg.Name, len(c.Cfg.Problems), len(c.Cfg.Players), len(c.Cfg.Sources)))
+		})
+	}()
+}
+
+// runExport 在后台执行打包导出，成功后把路径报到状态栏。
+func (g *guiApp) runExport(busyMsg string, fn func() (string, error)) {
+	g.busy(true, busyMsg)
+	go func() {
+		path, err := fn()
+		ui(func() {
+			if err != nil {
+				g.busy(false, tr("导出失败"))
+				g.showError(err)
+				return
+			}
+			g.busy(false, tr("数据包已导出"))
+			g.setStatus(tr("数据包已导出：") + path)
+		})
+	}()
 }
