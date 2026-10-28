@@ -23,9 +23,22 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func cmdConfig(args []string) {
+	// 子命令先判：export / import 与"设某项配置"不冲突，
+	// 因为配置项里没有叫这两个名字的。
+	if len(args) > 0 {
+		switch strings.ToLower(args[0]) {
+		case "export", "save":
+			cmdConfigExport(args[1:])
+			return
+		case "import", "load":
+			cmdConfigImport(args[1:])
+			return
+		}
+	}
 	switch {
 	case len(args) == 0:
 		showConfig()
@@ -36,6 +49,93 @@ func cmdConfig(args []string) {
 	default:
 		fatal(tr("用法: otk config [<项> <值>]"))
 	}
+}
+
+// cmdConfigExport 把全局配置打包成 zip。
+//
+//	otk config export [文件.zip] [-r] [-t]
+//
+// -r 连项目库一起导出，-t 连 OJ 令牌一起导出（默认不带，凭据不外流）。
+func cmdConfigExport(args []string) {
+	opts := configExportOptions{}
+	path := ""
+	for _, a := range args {
+		switch a {
+		case "-r", "--registry":
+			opts.IncludeRegistry = true
+		case "-t", "--tokens":
+			opts.IncludeTokens = true
+		case "-h", "--help":
+			fmt.Println(tr("用法: otk config export [文件.zip] [-r] [-t]"))
+			return
+		default:
+			if strings.HasPrefix(a, "-") || path != "" {
+				fatal(tr("用法: otk config export [文件.zip] [-r] [-t]"))
+			}
+			path = a
+		}
+	}
+	if path == "" {
+		path = "otk-config-" + time.Now().Format("20060102") + ".zip"
+	}
+	info, err := exportConfigArchive(path, opts)
+	if err != nil {
+		fatal("%v", err)
+	}
+	extra := ""
+	if info.WithRegistry {
+		extra += tr("，含项目库")
+	}
+	if info.WithTokens {
+		extra += tr("，含令牌")
+	}
+	fmt.Printf(tr("配置已导出: %s（%d 项%s）\n"), path, info.Keys, extra)
+}
+
+// cmdConfigImport 从 zip 导入配置。
+//
+//	otk config import <文件.zip> [-f] [-t] [-r]
+//
+// 默认只补本地没有的项；-f 覆盖同名项，-t 导入令牌，-r 导入项目库。
+func cmdConfigImport(args []string) {
+	opts := configImportOptions{}
+	path := ""
+	for _, a := range args {
+		switch a {
+		case "-f", "--overwrite":
+			opts.Overwrite = true
+		case "-t", "--tokens":
+			opts.IncludeTokens = true
+		case "-r", "--registry":
+			opts.IncludeRegistry = true
+		case "-h", "--help":
+			fmt.Println(tr("用法: otk config import <文件.zip> [-f] [-t] [-r]"))
+			return
+		default:
+			if strings.HasPrefix(a, "-") || path != "" {
+				fatal(tr("用法: otk config import <文件.zip> [-f] [-t] [-r]"))
+			}
+			path = a
+		}
+	}
+	if path == "" {
+		fatal(tr("用法: otk config import <文件.zip> [-f] [-t] [-r]"))
+	}
+	res, err := importConfigArchive(path, opts)
+	if err != nil {
+		fatal("%v", err)
+	}
+	fmt.Printf(tr("从 %s 导入配置: %s\n"), res.From, configArchiveSummary(res))
+	if len(res.Added) > 0 {
+		fmt.Printf(tr("新增: %s\n"), strings.Join(res.Added, " "))
+	}
+	if len(res.Updated) > 0 {
+		fmt.Printf(tr("覆盖: %s\n"), strings.Join(res.Updated, " "))
+	}
+	if len(res.Skipped) > 0 {
+		fmt.Printf(tr("保留本地: %s\n"), strings.Join(res.Skipped, " "))
+	}
+	fmt.Println(tr("部分改动（主题、语言）重启后生效。"))
 }
 
 // cmdRemoteConfig 管理命名远端列表：

@@ -41,8 +41,9 @@ var guiLogoData []byte
 
 // 界面模式：项目库与模拟赛共用同一个右侧详情区。
 const (
-	modeProject = "project"
-	modeContest = "contest"
+	modeProject     = "project"
+	modeProjectList = "projects"
+	modeContest     = "contest"
 )
 
 // guiApp 是图形界面的外壳状态：项目库、当前项目页与状态栏。
@@ -61,7 +62,7 @@ type guiApp struct {
 	status  *widget.Label
 	spinner *widget.ProgressBarInfinite
 
-	mode     string // project / contest
+	mode     string // project / projects / contest
 	selected string
 	page     *projectPage
 	contest  *contestPage
@@ -329,6 +330,8 @@ func (g *guiApp) buildSidebar() fyne.CanvasObject {
 	contestBtn.Alignment = widget.ButtonAlignLeading
 	batchBtn := widget.NewButtonWithIcon(tr("批量评测"), theme.MediaPlayIcon(), g.batchJudgeDialog)
 	batchBtn.Alignment = widget.ButtonAlignLeading
+	listBtn := widget.NewButtonWithIcon(tr("全部项目"), theme.ListIcon(), g.showProjectList)
+	listBtn.Alignment = widget.ButtonAlignLeading
 
 	head := container.NewVBox(
 		container.NewPadded(container.NewVBox(
@@ -338,6 +341,7 @@ func (g *guiApp) buildSidebar() fyne.CanvasObject {
 		widget.NewSeparator(),
 		container.NewPadded(container.NewVBox(
 			section(tr("项目库")),
+			listBtn,
 			batchBtn,
 		)),
 		container.NewPadded(g.search),

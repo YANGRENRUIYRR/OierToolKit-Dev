@@ -61,6 +61,7 @@ Using "read two integers, print their sum" as an example:
 ```bash
 mkdir aplusb && cd aplusb
 otk init                      # initialize a project here (directory name by default)
+otk init -t stress practice   # also generate gen.cpp and brute.cpp
 
 echo "1 2" > sample1.in       # samples are paired files in the directory
 echo "3" > sample1.out
@@ -82,13 +83,14 @@ Main commands at a glance (`otk help` for the full list):
 
 | Command | Description |
 |---|---|
-| `otk init [name]` | Initialize a project in the current directory and register it |
+| `otk init [-t template] [name]` | Initialize a project here; `-t` picks a template (blank / io / multi / fileio / stress) |
 | `otk st` | Project status |
 | `otk ls / se <regex> / rm [--soft&#124;--hard] [name]` | Project registry; rm soft-deletes by default or deletes the project |
 | `otk cd [name]` | Open a new shell in the project directory |
 | `otk refresh (rf)` | Sync the sample database (.in/.out pairs) |
 | `otk samples` | List samples |
 | `otk config [key value]` | Show/update config (project: time/memory/version/o2; global: editor) |
+| `otk config export \| import` | Pack `~/.otkprofile` into a small zip for another machine; tokens and registry are opt-in |
 | `otk judge (j) [-v]` | Compile and judge all samples; `-v` shows errors and WA details |
 | `otk clone [url] <id>` | Add a problem from a website: clones it and samples into a new `<oj>-<id>` project dir (see PROTOCOL.md) |
 | `otk submit (sub) [-q]` | Submit the source to remote judging and wait; `-q` submits only |

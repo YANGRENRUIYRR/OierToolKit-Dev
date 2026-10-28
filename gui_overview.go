@@ -142,6 +142,9 @@ func newOverviewPage(pg *projectPage) *overviewPage {
 	packBtn := widget.NewButtonWithIcon(tr("打包 ZIP"), theme.DownloadIcon(), func() {
 		pg.g.exportProjectZip(pg.p)
 	})
+	tplBtn := widget.NewButtonWithIcon(tr("存为模板"), theme.ContentCopyIcon(), func() {
+		pg.g.saveAsTemplateDialog(pg.p)
+	})
 
 	info := container.NewVBox(
 		section(tr("项目")),
@@ -183,8 +186,8 @@ func newOverviewPage(pg *projectPage) *overviewPage {
 		widget.NewSeparator(),
 		section(tr("操作")),
 		container.NewHBox(refreshBtn, openBtn, editBtn, termBtn),
-		container.NewHBox(packBtn,
-			caption(tr("源码、样例与 .otk 配置打成一个 zip；编译产物不会带进去。"))),
+		container.NewHBox(packBtn, tplBtn),
+		container.NewHBox(caption(tr("打包 ZIP：源码、样例与配置打成一个包，不含编译产物。存为模板：把这份骨架留作下次新建的起手式。"))),
 		container.NewHBox(removeBtn, layout.NewSpacer()),
 	)
 

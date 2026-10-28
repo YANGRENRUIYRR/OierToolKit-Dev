@@ -291,7 +291,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprint(w, `用法: otk <命令> [参数...]
 
 项目:
-  otk init [名称]        在当前目录初始化项目
+  otk init [-t 模板] [名称]  在当前目录初始化项目（-t 选模板，如 blank/io/multi/fileio/stress）
   otk status | st        当前项目状态
   otk ls                 列出全部项目
   otk se <正则>          搜索项目
@@ -306,6 +306,8 @@ func printUsage(w io.Writer) {
 配置:
   otk config             查看配置
   otk config <项> <值>   修改配置
+  otk config export [zip] [-r] [-t]  导出配置（-r 含项目库，-t 含令牌）
+  otk config import <zip> [-f] [-r] [-t]  导入配置（-f 覆盖同名项）
 
 运行:
   otk judge | j [-v] [样例...]  编译并评测（-v 显示报错与 WA 详情；指定样例号只测该点）

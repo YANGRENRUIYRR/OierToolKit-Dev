@@ -66,6 +66,7 @@ Windows 上两个入口要分别编译：`scripts/build-windows.sh` 会把 `otk.
 ```bash
 mkdir aplusb && cd aplusb
 otk init                      # 当前目录建项目（默认用目录名）
+otk init -t stress 对拍练习    # 连 gen.cpp / brute.cpp 一起生成
 
 echo "1 2" > sample1.in       # 样例就是目录里的文件对
 echo "3" > sample1.out
@@ -87,7 +88,7 @@ otk j                         # 编译并评测
 
 | 命令 | 说明 |
 |---|---|
-| `otk init [名称]` | 当前目录初始化项目并登记 |
+| `otk init [-t 模板] [名称]` | 当前目录初始化项目并登记；`-t` 选模板（空白 / 读入输出 / 多测 / 文件读写 / 对拍三件套） |
 | `otk st` | 项目状态 |
 | `otk ls / se <正则> / rm [--soft \| --hard] [名称]` | 项目库管理；rm 默认软删除，也可硬删除 |
 | `otk cd [名称]` | 在新 shell 中打开项目目录 |
@@ -95,6 +96,7 @@ otk j                         # 编译并评测
 | `otk samples` | 列出样例 |
 | `otk config [项 值]` | 查看/修改配置（项目项：time/memory/version/o2/cflags/spj 等；全局项：editor） |
 | `otk config remote ls \| add \| token \| rm` | 管理多个远端，每条远端有独立地址与令牌 |
+| `otk config export \| import` | 把 `~/.otkprofile` 的配置打包成几十 KB 的 zip 搬到另一台机器；默认不含令牌与项目库 |
 | `otk judge (j) [-v] [样例...]` | 编译并评测样例；`-v` 显示报错与 WA 详情；指定样例号只测该点 |
 | `otk history (his) [次数]` | 查看最近几次评测结果 |
 | `otk clone [-r 远端名] [url] <id>` | 从网站添加题目：题目与样例到 `<oj>-<题号>` 目录并初始化（协议见 PROTOCOL.md） |

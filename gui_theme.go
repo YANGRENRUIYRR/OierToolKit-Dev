@@ -240,7 +240,21 @@ func (t *otkTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) co
 		}
 		return color.NRGBA{R: 0x9B, G: 0xBB, B: 0xFA, A: 0x6E}
 	}
+	// 基础主题只认"是不是浅色"，其余一律按深色取；而上面的判断反过来，
+	// 只认"是不是深色"。遇到两边都不认的值（测试驱动给的就是 2），
+	// 就会出现我们画浅底、基础主题配深色按钮的割裂。这里先归一化。
+	if variant != theme.VariantDark && variant != theme.VariantLight {
+		variant = pickVariant(dark)
+	}
 	return t.base.Color(name, variant)
+}
+
+// pickVariant 把"是否深色"翻回变体常量，供回退到基础主题时使用。
+func pickVariant(dark bool) fyne.ThemeVariant {
+	if dark {
+		return theme.VariantDark
+	}
+	return theme.VariantLight
 }
 
 // pickColor 按主题在深色/浅色两套取值中挑一个。

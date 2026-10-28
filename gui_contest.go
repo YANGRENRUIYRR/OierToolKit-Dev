@@ -1293,6 +1293,28 @@ func scoreToneOf(c contest, problem string, score float64) scoreTone {
 }
 
 // showContestList 把右侧详情切回模拟赛列表。
+// showProjectList 打开项目库总览页（表格视图）。
+func (g *guiApp) showProjectList() {
+	g.generation.Add(1)
+	if g.page != nil {
+		g.page.stop()
+		g.page = nil
+	}
+	if g.contest != nil {
+		g.contest.stop()
+		g.contest = nil
+	}
+	g.selected = ""
+	g.mode = modeProjectList
+	if g.list != nil {
+		g.list.UnselectAll()
+		g.list.Refresh()
+	}
+	g.detail.Objects = []fyne.CanvasObject{g.buildProjectList()}
+	g.detail.Refresh()
+	g.setStatus(tr("项目库"))
+}
+
 func (g *guiApp) showContestList() {
 	g.generation.Add(1)
 	g.page = nil

@@ -36,6 +36,12 @@ import (
 
 // newProjectDialog 在选定目录里初始化一个新项目。
 func (g *guiApp) newProjectDialog() {
+	tpls := allTemplates()
+	builtin := map[string]bool{}
+	for _, t := range builtinTemplates() {
+		builtin[t.ID] = true
+	}
+
 	dirEntry := widget.NewEntry()
 	dirEntry.SetPlaceHolder(tr("项目目录，例如 D:\\OI\\aplusb"))
 	nameEntry := widget.NewEntry()
@@ -53,12 +59,76 @@ func (g *guiApp) newProjectDialog() {
 	})
 	dirRow := container.NewBorder(nil, nil, nil, browse, dirEntry)
 
+	tplLabels := make([]string, len(tpls))
+	for i, t := range tpls {
+		tplLabels[i] = templateLabel(t)
+	}
+	descLbl := caption("")
+	delBtn := widget.NewButtonWithIcon(tr("删除模板"), theme.DeleteIcon(), nil)
+	delBtn.Hide()
+
+	var tplSel *widget.Select
+	syncTemplate := func() {
+		i := tplSel.SelectedIndex()
+		if i < 0 || i >= len(tpls) {
+			descLbl.SetText("")
+			delBtn.Hide()
+			return
+		}
+		t := tpls[i]
+		descLbl.SetText(strings.TrimSuffix(templateDesc(t), "。") + " · " + templatePropsSummary(t))
+		// 内置模板没什么可删的，直接把按钮收起来，别摆一个永远是灰的按钮。
+		if builtin[t.ID] {
+			delBtn.Hide()
+		} else {
+			delBtn.Show()
+		}
+	}
+	tplSel = widget.NewSelect(tplLabels, func(string) { syncTemplate() })
+	tplSel.SetSelectedIndex(0)
+	tplRow := container.NewBorder(nil, nil, nil, delBtn, tplSel)
+
+	delBtn.OnTapped = func() {
+		i := tplSel.SelectedIndex()
+		if i < 0 || i >= len(tpls) {
+			return
+		}
+		t := tpls[i]
+		dialog.ShowConfirm(tr("删除模板"),
+			fmt.Sprintf(tr("删除模板「%s」？项目本身不受影响。"), templateLabel(t)),
+			func(ok bool) {
+				if !ok {
+					return
+				}
+				if err := deleteCustomTemplate(t.ID); err != nil {
+					g.showError(err)
+					return
+				}
+				// 下拉框已经建好了，只能自己换掉选项列表再刷新。
+				tpls = allTemplates()
+				tplLabels = tplLabels[:0]
+				for _, tt := range tpls {
+					tplLabels = append(tplLabels, templateLabel(tt))
+				}
+				tplSel.Options = tplLabels
+				tplSel.ClearSelected()
+				tplSel.Refresh()
+				if len(tpls) > 0 {
+					tplSel.SetSelectedIndex(0)
+				} else {
+					syncTemplate()
+				}
+			}, g.win)
+	}
+
 	content := container.NewVBox(
 		widget.NewForm(
+			widget.NewFormItem(tr("模板"), tplRow),
 			widget.NewFormItem(tr("目录"), dirRow),
 			widget.NewFormItem(tr("名称"), nameEntry),
 		),
-		caption(tr("目录不存在会自动创建；已有 .cpp 与样例文件时不会覆盖。")),
+		descLbl,
+		caption(tr("目录不存在会自动创建；已存在的源码、样例与配置都不会被覆盖。")),
 	)
 
 	g.showWideDialog(tr("新建项目"), tr("创建"), tr("取消"), content, func() {
@@ -75,7 +145,12 @@ func (g *guiApp) newProjectDialog() {
 			g.showError(fmt.Errorf(tr("无法创建目录: %v"), err))
 			return
 		}
-		p, res, created, err := initProjectAt(dir, name)
+		var tmpl *projectTemplate
+		if i := tplSel.SelectedIndex(); i >= 0 && i < len(tpls) {
+			t := tpls[i]
+			tmpl = &t
+		}
+		p, res, created, err := initProjectAtWith(dir, name, tmpl)
 		if err != nil {
 			g.showError(err)
 			return
@@ -332,6 +407,11 @@ func (g *guiApp) settingsDialog() {
 		rowsBox,
 		container.NewHBox(addRemoteBtn),
 		caption(tr("每条远端有独立的地址与令牌；克隆与提交时按地址自动匹配令牌。\n“默认”远端兼容旧版 otk config remote <地址> 的配置。")),
+		widget.NewSeparator(),
+		section(tr("备份与迁移")),
+		g.configBackupButtons(),
+		caption(tr("导出的 zip 只有几十 KB：换机器时把它拷过去再导入，编辑器和偏好就都回来了。")),
+		caption(tr("导入默认只补空缺项，不动本机已有的设置；令牌与项目库需要单独勾选。")),
 		widget.NewSeparator(),
 		section(tr("其他")),
 		container.NewVBox(
